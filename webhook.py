@@ -1,8 +1,9 @@
+import logging
 from fastapi import FastAPI, Request
 from aiogram.types import Update
 from bot import dp
-from config import bot  # ✅ заменил импорт
-
+from config import bot # ✅ заменил импорт
+logging.basicConfig(level=logging.INFO)
 app = FastAPI()
 
 @app.on_event("startup")

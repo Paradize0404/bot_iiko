@@ -1,10 +1,10 @@
 from aiogram import Router, F, types
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
-from states import RegisterStates
-from keyboards.main_menu import main_menu_keyboard
-from upload_db.sprav import get_token, fetch_reference, REFERENCE_TYPES
-from upload_db.db_sync import sync_reference_table
+# from states import RegisterStates
+# from keyboards.main_menu import main_menu_keyboard
+# from upload_db.sprav import get_token, fetch_reference, REFERENCE_TYPES
+# from upload_db.db_sync import sync_reference_table
 from bot import bot
 
 router = Router()
@@ -58,21 +58,3 @@ async def cancel_process(message: Message, state: FSMContext):
 
     await state.clear()
     await message.answer("❌ Действие отменено. Возвращаемся в главное меню.", reply_markup=main_menu_keyboard())
-
-@router.message(F.text == "/sync")
-async def sync_iiko_data(message: types.Message):
-    try:
-        token = get_token()
-        await message.answer("🔄 Начинаю синхронизацию...")
-
-        for ref_type in REFERENCE_TYPES:
-            try:
-                data = fetch_reference(token, ref_type)
-                await sync_reference_table(ref_type, data)
-                await message.answer(f"✅ {ref_type}: синхронизировано.")
-            except Exception as e:
-                await message.answer(f"⚠️ {ref_type}: ошибка — {e}")
-
-        await message.answer("🏁 Синхронизация завершена.")
-    except Exception as e:
-        await message.answer(f"❌ Ошибка синхронизации: {e}")

@@ -1,7 +1,7 @@
 from aiogram import Router, F, types
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
-# from states import RegisterStates
+from states import RegisterStates
 # from keyboards.main_menu import main_menu_keyboard
 # from upload_db.sprav import get_token, fetch_reference, REFERENCE_TYPES
 # from upload_db.db_sync import sync_reference_table

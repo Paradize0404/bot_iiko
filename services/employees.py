@@ -4,32 +4,35 @@ import httpx
 import logging
 from iiko.iiko_auth import get_auth_token, get_base_url
 
+import xml.etree.ElementTree as ET
+
 async def fetch_employees():
-    """
-    Получает список активных сотрудников из iiko и возвращает только id, firstName, lastName
-    """
     token = await get_auth_token()
-    url = f"{get_base_url()}/resto/api/employees?key={token}"
+    base_url = get_base_url()
 
+    url = f"{base_url}/resto/api/employees?key={token}"
+    
     try:
-        async with httpx.AsyncClient(verify=False) as client:
-            response = await client.get(url)
-            response.raise_for_status()
-            raw_data = response.json()
+        response = httpx.get(url, timeout=10.0, verify=False)
+        if response.status_code != 200:
+            logging.error(f"❌ Ошибка при запросе: {response.status_code}")
+            return []
 
-        employees = [
-            {
-                "id": emp.get("id"),
-                "first_name": emp.get("firstName"),
-                "last_name": emp.get("lastName")
-            }
-            for emp in raw_data
-            if emp.get("id") and emp.get("firstName") and emp.get("lastName")
-        ]
+        # Парсим XML
+        employees = []
+        root = ET.fromstring(response.text)
+        for emp in root.findall("employee"):
+            employees.append({
+                "id": emp.findtext("id"),
+                "name": emp.findtext("name"),
+                "phone": emp.findtext("cellPhone"),
+                "department": emp.findtext("preferredDepartmentCode"),
+                "card": emp.findtext("cardNumber"),
+                "role": emp.findtext("mainRoleCode")
+            })
 
-        logging.info(f"✅ Загружено сотрудников: {len(employees)}")
         return employees
 
     except Exception as e:
-        logging.error(f"❌ Ошибка при получении сотрудников: {e}")
+        logging.error("❌ Ошибка при получении сотрудников: %s", e)
         return []

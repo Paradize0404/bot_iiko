@@ -6,7 +6,7 @@ app = FastAPI()
 
 @app.on_event("startup")
 async def startup():
-    await bot.set_webhook("https://<your-railway-app>.railway.app/webhook")
+    await bot.set_webhook("https://botiiko-production.railway.app/webhook")
 
 @app.post("/webhook")
 async def webhook(request: Request):

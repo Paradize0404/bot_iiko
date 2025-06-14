@@ -41,4 +41,4 @@ if __name__ == "__main__":
     if MODE == "dev":
         asyncio.run(on_startup())  # локальный запуск polling
     else:
-        uvicorn.run
+        uvicorn.run("webhook:app", host="0.0.0.0", port=8000)

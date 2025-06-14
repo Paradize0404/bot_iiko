@@ -4,6 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 from states import RegisterStates
 from keyboards.main_keyboard import main_menu_keyboard
+from services.employees import fetch_employees
 
 logging.basicConfig(level=logging.INFO)
 
@@ -12,7 +13,7 @@ router = Router()
 @router.message(F.text.startswith("/start"))
 async def start(message: Message, state: FSMContext):
     logging.info(f"📨 /start от {message.from_user.id}")
-    msg = await message.answer("Как тебя зовут?")
+    msg = await message.answer("Как тебя зовут (Напиши свою фамилию)?")
     await state.set_state(RegisterStates.waiting_for_name)
     await state.update_data(question_msg_id=msg.message_id)
 
@@ -61,3 +62,10 @@ async def cancel_process(message: Message, state: FSMContext):
 
     await state.clear()
     await message.answer("❌ Действие отменено. Возвращаемся в главное меню.", reply_markup=main_menu_keyboard())
+
+
+
+@router.message(F.text == "/load_staff")
+async def load_staff(message: Message):
+    employees = await fetch_employees()
+    await message.answer(f"👥 Загружено сотрудников: {len(employees)}")

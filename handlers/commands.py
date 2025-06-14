@@ -6,6 +6,7 @@ from states import RegisterStates
 from keyboards.main_keyboard import main_menu_keyboard
 from services.employees import fetch_employees
 from db.employees_db import async_session, Employee
+from db.nomenclature_db import fetch_products
 logging.basicConfig(level=logging.INFO)
 
 router = Router()
@@ -102,3 +103,15 @@ async def cancel_process(message: Message, state: FSMContext):
 async def load_staff(message: Message):
     employees = await fetch_employees()
     await message.answer(f"👥 Загружено сотрудников: {len(employees)}")
+
+
+# @router.message(F.text == "/load_products")
+# async def load_products(message: Message):
+#     await message.answer("⏳ Запрашиваю номенклатуру…")
+#     try:
+#         products = await fetch_products()
+#         await init_db()           # создаём таблицу, если надо
+#         await save_products(products)
+#         await message.answer(f"✅ Номенклатура обновлена, всего позиций: {len(products)}")
+#     except Exception as e:
+#         await message.answer(f"❌ Ошибка при загрузке: {e}")

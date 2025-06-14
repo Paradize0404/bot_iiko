@@ -39,3 +39,5 @@ def get_base_url() -> str:
     Вернуть базовый URL для iiko API
     """
     return BASE_URL
+
+

@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 from aiogram.types import Update
-from bot import bot, dp
+from bot import dp
+from config import bot  # ✅ заменил импорт
 
 app = FastAPI()
 

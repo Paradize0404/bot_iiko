@@ -5,7 +5,7 @@ from aiogram.types import Message
 # from keyboards.main_menu import main_menu_keyboard
 # from upload_db.sprav import get_token, fetch_reference, REFERENCE_TYPES
 # from upload_db.db_sync import sync_reference_table
-from bot import bot
+
 
 router = Router()
 
@@ -27,7 +27,7 @@ async def get_name(message: Message, state: FSMContext):
     msg_id = data.get("question_msg_id")
 
     if msg_id:
-        await bot.edit_message_text(
+        await message.bot.edit_message_text(
             chat_id=message.chat.id,
             message_id=msg_id,
             text=f"Привет, {name} 👋"
@@ -47,7 +47,7 @@ async def cancel_process(message: Message, state: FSMContext):
 
     for msg_id in msg_ids_to_delete:
         try:
-            await bot.delete_message(chat_id=message.chat.id, message_id=msg_id)
+            await message.bot.delete_message(chat_id=message.chat.id, message_id=msg_id)
         except Exception:
             pass
 

@@ -5,7 +5,7 @@ from aiogram.types import Message
 from states import RegisterStates
 from keyboards.main_keyboard import main_menu_keyboard
 from services.employees import fetch_employees
-
+from db.employees_db import async_session, Employee
 logging.basicConfig(level=logging.INFO)
 
 router = Router()
@@ -19,25 +19,58 @@ async def start(message: Message, state: FSMContext):
 
 @router.message(RegisterStates.waiting_for_name)
 async def get_name(message: Message, state: FSMContext):
-    logging.info(f"👤 Имя получено от {message.from_user.id}: {message.text}")
+    logging.info(f"👤 Фамилия получена от {message.from_user.id}: {message.text}")
     try:
         await message.delete()
     except Exception as e:
         logging.warning(f"❗️Не удалось удалить сообщение: {e}")
 
-    name = message.text
+    last_name = message.text.strip()
     data = await state.get_data()
     msg_id = data.get("question_msg_id")
 
-    if msg_id:
-        await message.bot.edit_message_text(
-            chat_id=message.chat.id,
-            message_id=msg_id,
-            text=f"Привет, {name} 👋"
+    async with async_session() as session:
+        result = await session.execute(
+            Employee.__table__.select().where(Employee.last_name == last_name)
         )
+        row = result.fetchone()
 
-    await message.answer("Вот главное меню:", reply_markup=main_menu_keyboard())
-    await state.clear()
+        if row:
+            employee = await session.get(Employee, row[0])
+            employee.telegram_id = str(message.from_user.id)
+            await session.commit()
+            greet_text = f"Привет, {employee.first_name} 👋"
+
+            if msg_id:
+                await message.bot.edit_message_text(
+                    chat_id=message.chat.id,
+                    message_id=msg_id,
+                    text=greet_text
+                )
+            else:
+                await message.answer(greet_text)
+
+            await message.answer("Вот главное меню:", reply_markup=main_menu_keyboard())
+            await state.clear()
+
+        else:
+            warn_text = "🚫 Доступ запрещён. Сотрудник не найден."
+
+            if msg_id:
+                await message.bot.edit_message_text(
+                    chat_id=message.chat.id,
+                    message_id=msg_id,
+                    text=warn_text
+                )
+            else:
+                await message.answer(warn_text)
+
+            # ❌ Удаляем клавиатуру
+            await message.answer(warn_text, reply_markup=types.ReplyKeyboardRemove())
+
+            # ❗️Не сбрасываем state, остаётся в RegisterStates.waiting_for_name
+
+            # остаётся в состоянии ожидания
 
 @router.message(F.text == "/cancel")
 async def cancel_process(message: Message, state: FSMContext):

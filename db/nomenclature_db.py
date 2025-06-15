@@ -1,94 +1,127 @@
-import os
-import httpx
+# nomenclature_db.py
+import os, httpx, asyncio
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Mapped, mapped_column
-from sqlalchemy import String, Float, Boolean, JSON
-from db.employees_db import save_employees, init_db
-from typing import List, Dict
-from iiko.iiko_auth import get_auth_token, get_base_url
+from sqlalchemy.orm import sessionmaker, Mapped, mapped_column, declarative_base
+from sqlalchemy import String, select, func, text
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
+# ─────────── настройки ───────────
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
-    raise ValueError("DATABASE_URL is not set!")
+    raise ValueError("DATABASE_URL env var not set")
 
+engine        = create_async_engine(DATABASE_URL, echo=False)
+async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 Base = declarative_base()
 
-class Product(Base):
-    __tablename__ = "products"
+# ─────────── ORM-модель ───────────
+class Nomenclature(Base):
+    __tablename__ = "nomenclature"
 
-    id:           Mapped[str]  = mapped_column(String, primary_key=True)
-    code:         Mapped[str]  = mapped_column(String, nullable=True)
-    name:         Mapped[str]  = mapped_column(String)
-    full_name:    Mapped[str]  = mapped_column(String, nullable=True)
-    weight:       Mapped[float] = mapped_column(Float, nullable=True)
-    is_deleted:   Mapped[bool] = mapped_column(Boolean, default=False)
-    raw_json:     Mapped[dict] = mapped_column(JSON, nullable=True)   # хранит весь объект «как есть»
+    id:           Mapped[str] = mapped_column(String, primary_key=True)
+    name:         Mapped[str] = mapped_column(String)
+    code:         Mapped[str] = mapped_column(String, nullable=True)
+    parentgroup:  Mapped[str] = mapped_column(String, nullable=True)
 
-engine = create_async_engine(DATABASE_URL, echo=False)
-async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+# ──────────────────────────────────
+# 1. инициализация (создать таблицу, если нет; добавить новые столбцы)
+# ──────────────────────────────────
 
-# ──────────────────────────────────────────────────────────────────────────
-async def init_db():
+CREATE_SQL = """
+CREATE TABLE IF NOT EXISTS nomenclature (
+    id   VARCHAR PRIMARY KEY,
+    name TEXT NOT NULL
+);
+"""
+
+ALTER_SQL = """
+ALTER TABLE nomenclature
+    ADD COLUMN IF NOT EXISTS code        VARCHAR,
+    ADD COLUMN IF NOT EXISTS parentgroup VARCHAR;
+"""
+
+async def init_db() -> None:
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        print("📦 Таблица products создана или уже существует.")
+        await conn.execute(text(CREATE_SQL))
+        await conn.execute(text(ALTER_SQL))
+    print("✅ Таблица nomenclature готова.")
 
-# ──────────────────────────────────────────────────────────────────────────
+# async def init_db():
+#     async with engine.begin() as conn:
+#         await conn.execute(text(INIT_SQL))
+#     print("✅ Таблица nomenclature готова.")
 
+# ──────────────────────────────────
+# 2. получаем данные из iiko
+# ──────────────────────────────────
+from iiko.iiko_auth import get_auth_token, get_base_url       # <- твои функции
 
-async def fetch_products() -> List[Dict]:
-    token = await get_auth_token()
+async def fetch_nomenclature():
+    token    = await get_auth_token()
     base_url = get_base_url()
-    url   = f"{base_url}/resto/api/v2/entities/products/list"
-    resp  = httpx.get(url, params={"key": token}, verify=False)
-    resp.raise_for_status()
-    return resp.json()
+    url      = f"{base_url}/resto/api/v2/entities/products/list"
+    r        = httpx.get(url, params={"key": token}, verify=False)
+    r.raise_for_status()
+    data = r.json()
+    print(f"📦 Получено: {len(data)} позиций")
+    return data
 
-
-async def save_products(data: list[dict]):
-    """
-    Синхронизируем всё, что получили от API:
-    – удаляем записи, которых больше нет
-    – обновляем существующие
-    – добавляем новые
-    """
+# ──────────────────────────────────
+# 3. синхронизация таблицы
+# ──────────────────────────────────
+async def sync_nomenclature(api_rows: list[dict]):
     async with async_session() as session:
-        # какие ID уже есть в БД
-        rows = (await session.execute(Product.__table__.select())).fetchall()
-        existing_ids = {row[0] for row in rows}
+        # ——— множество ID из ответа API
+        api_ids = {row["id"] for row in api_rows if "id" in row}
+        if not api_ids:
+            print("⚠️ В ответе нет id – выхожу.")
+            return
 
-        new_ids = {item["id"] for item in data}
-        ids_to_delete = existing_ids - new_ids
-
-        # DELETE
+        # ——— удалить записи, которых больше нет в API
+        db_ids = {r[0] for r in await session.execute(select(Nomenclature.id))}
+        ids_to_delete = db_ids - api_ids
         if ids_to_delete:
             await session.execute(
-                Product.__table__.delete().where(Product.id.in_(ids_to_delete))
+                Nomenclature.__table__.delete().where(Nomenclature.id.in_(ids_to_delete))
             )
 
-        # UPSERT
-        for item in data:
-            obj = await session.get(Product, item["id"])
-            if obj:
-                obj.code       = item.get("code")
-                obj.name       = item.get("name")
-                obj.full_name  = item.get("nameFull")
-                obj.weight     = item.get("weight")
-                obj.is_deleted = bool(item.get("deleted"))
-                obj.raw_json   = item
-            else:
-                session.add(
-                    Product(
-                        id         = item["id"],
-                        code       = item.get("code"),
-                        name       = item.get("name"),
-                        full_name  = item.get("nameFull"),
-                        weight     = item.get("weight"),
-                        is_deleted = bool(item.get("deleted")),
-                        raw_json   = item,
-                    )
-                )
+        # ——— подготовить строки для UPSERT
+        rows = [
+            {
+                "id":          r["id"],
+                "name":        r.get("name"),
+                "code":        r.get("code"),
+                "parentgroup": r.get("parentGroup"),   # ← внимательно с регистром ключа!
+            }
+            for r in api_rows
+            if "id" in r
+        ]
+
+        stmt = pg_insert(Nomenclature).values(rows)
+        upsert = stmt.on_conflict_do_update(
+            index_elements=["id"],
+            set_={
+                "name":        stmt.excluded.name,
+                "code":        stmt.excluded.code,
+                "parentgroup": stmt.excluded.parentgroup,
+            },
+        )
+        await session.execute(upsert)
         await session.commit()
+
+        total = await session.scalar(select(func.count()).select_from(Nomenclature))
+        print(f"✅ Синхронизировано, записей в БД: {total}")
+
+# # ──────────────────────────────────
+# # 4. пример точка входа (вызывается из твоего /load_products)
+# # ──────────────────────────────────
+# async def main():
+#     await init_db()                        # гарантируем схему
+#     data = await fetch_nomenclature()      # тянем из iiko
+#     await sync_nomenclature(data)          # обновляем таблицу
+
+# # для локального теста: python nomenclature_db.py
+# if __name__ == "__main__":
+#     asyncio.run(main())

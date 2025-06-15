@@ -136,7 +136,6 @@ async def load_groups(message: Message):
     except Exception as e:
         await safe_send_error(message, e)
 
-
 @router.message(F.text == "/load_stores")
 async def load_stores(message: types.Message):
     try:

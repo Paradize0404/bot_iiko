@@ -145,3 +145,6 @@ async def load_stores(message: types.Message):
         await message.answer("✅ Склады обновлены")
     except Exception as e:
         await safe_send_error(message, e)
+
+
+        

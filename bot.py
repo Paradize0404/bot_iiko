@@ -18,3 +18,4 @@ dp.include_router(salary.router)
 
 logging.info("✅ Routers registered")
 
+

@@ -10,7 +10,11 @@ from db.employees_db import async_session, Employee
 from db.nomenclature_db import fetch_nomenclature, sync_nomenclature, init_db
 from db.group_db import init_groups_table, fetch_groups, sync_groups
 from utils.telegram_helpers import safe_send_error, tidy_response
-
+from db.stores_db import (
+    init_stores_table,
+    fetch_stores,
+    sync_stores,
+)
 logging.basicConfig(level=logging.INFO)
 
 router = Router()
@@ -129,5 +133,16 @@ async def load_groups(message: Message):
         data = await fetch_groups()
         await sync_groups(data)
         await message.answer("✅ Группы номенклатуры обновлены")
+    except Exception as e:
+        await safe_send_error(message, e)
+
+
+@router.message(F.text == "/load_stores")
+async def load_stores(message: types.Message):
+    try:
+        await init_stores_table()        # создаём таблицу при необходимости
+        data = await fetch_stores()      # тянем XML из iiko
+        await sync_stores(data)          # upsert + удаление лишних
+        await message.answer("✅ Склады обновлены")
     except Exception as e:
         await safe_send_error(message, e)

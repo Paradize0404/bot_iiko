@@ -11,7 +11,7 @@ from aiogram.methods import DeleteWebhook
 from fastapi import FastAPI, Request
 from aiogram.types import Update
 import uvicorn
-
+from utils.db_stores import init_pool
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
 
@@ -21,6 +21,7 @@ app = FastAPI()
 
 @app.on_event("startup")
 async def on_startup():
+    await init_pool()
     if MODE == "dev":
         logging.info("🧪 dev mode: удаляем webhook и запускаем polling")
         await bot(DeleteWebhook(drop_pending_updates=True))

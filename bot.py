@@ -7,6 +7,8 @@ from handlers import salary  # новый модуль
 from handlers import document
 
 from handlers import commands # твои роутеры
+from utils.db_stores import init_pool
+# from utils.db_stores import init_pool
 
 logging.basicConfig(level=logging.INFO)
 logging.info("📦 Initializing Dispatcher")

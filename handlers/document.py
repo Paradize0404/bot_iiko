@@ -7,7 +7,7 @@ from handlers.use_template import get_template_keyboard
 from handlers.use_template import handle_prep_choice
 router = Router()
 
-ADMIN_IDS = [1877127405]
+ADMIN_IDS = [1877127405, 6446544048]
 
 
 

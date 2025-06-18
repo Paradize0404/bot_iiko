@@ -5,6 +5,7 @@ from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from keyboards.main_keyboard import get_document_type_keyboard
 from handlers.use_template import get_template_keyboard
 from handlers.use_template import handle_prep_choice
+from handlers.writeoff import start_writeoff 
 router = Router()
 
 ADMIN_IDS = [1877127405, 6446544048]
@@ -20,8 +21,8 @@ async def choose_document_type(message: Message, state: FSMContext):
 
 
 @router.callback_query(F.data == "doc:writeoff")
-async def handle_writeoff_placeholder(callback: types.CallbackQuery):
-    await callback.answer("⛔️ Пока не реализовано", show_alert=True)
+async def handle_writeoff(callback: types.CallbackQuery, state: FSMContext):
+    await start_writeoff(callback, state)  # 🧠 Запускаем FSM списания
 
 
 @router.callback_query(F.data == "doc:move")

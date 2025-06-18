@@ -9,6 +9,8 @@ from aiogram import types
 import io
 import traceback
 from typing import Any, Optional
+from aiogram.types import Message
+from aiogram.exceptions import TelegramBadRequest
 
 __all__ = [
     "MAX_TG_LEN",
@@ -79,3 +81,18 @@ async def tidy_response(
             pass
 
     return await trigger.answer(text, reply_markup=reply_markup, parse_mode=parse_mode)
+
+
+
+async def edit_or_send(message: Message, message_id: int, new_text: str):
+    try:
+        await message.bot.edit_message_text(
+            chat_id=message.chat.id,
+            message_id=message_id,
+            text=new_text
+        )
+    except TelegramBadRequest:
+        # если старое сообщение удалить нельзя (например, оно исчезло) — отправляем новое
+        sent = await message.answer(new_text)
+        return sent.message_id
+    return message_id

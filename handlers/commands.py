@@ -15,6 +15,9 @@ from db.stores_db import (
     fetch_stores,
     sync_stores,
 )
+
+from db.sprav_db import sync_all_references
+from db.supplier_db import sync_suppliers
 logging.basicConfig(level=logging.INFO)
 
 router = Router()
@@ -147,4 +150,17 @@ async def load_stores(message: types.Message):
         await safe_send_error(message, e)
 
 
-        
+@router.message(F.text == "/load_references")
+async def load_references(message: Message):
+    try:
+        await sync_all_references()
+        await message.answer("✅ Все справочники синхронизированы")
+    except Exception as e:
+        await safe_send_error(message, e)
+
+
+@router.message(F.text == "/load_supplyers")
+async def sync_suppliers_command(message: Message):
+    
+    await sync_suppliers()
+    await message.answer("🔄 Поставщики успешно синхронизированы.")

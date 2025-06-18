@@ -1,4 +1,4 @@
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
 def main_menu_keyboard() -> ReplyKeyboardMarkup:
     keyboard = [
@@ -12,19 +12,11 @@ def main_menu_keyboard() -> ReplyKeyboardMarkup:
         input_field_placeholder="Выберите действие"
     )
 
-
-def document_menu_keyboard() -> ReplyKeyboardMarkup:
-    """
-    Клавиатура, которая появляется после нажатия «Создание документа».
-    """
-    keyboard = [
-        [KeyboardButton(text="🧾 Акт приготовления")],
-        [KeyboardButton(text="📉 Акт списания")],
-        [KeyboardButton(text="🔄 Внутреннее перемещение")],
-        [KeyboardButton(text="⬅️ Назад")],  # кнопка возврата в главное меню
-    ]
-    return ReplyKeyboardMarkup(
-        keyboard=keyboard,
-        resize_keyboard=True,
-        input_field_placeholder="Выберите тип документа",
+def get_document_type_keyboard():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🧾 Акт приготовления", callback_data="doc:prep")],
+            [InlineKeyboardButton(text="📉 Акт списания", callback_data="doc:writeoff")],
+            [InlineKeyboardButton(text="🔄 Внутреннее перемещение", callback_data="doc:move")]
+        ]
     )

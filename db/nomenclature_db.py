@@ -20,10 +20,10 @@ Base = declarative_base()
 class Nomenclature(Base):
     __tablename__ = "nomenclature"
 
-    id:           Mapped[str] = mapped_column(String, primary_key=True)
-    name:         Mapped[str] = mapped_column(String)
-    code:         Mapped[str] = mapped_column(String, nullable=True)
-    parentgroup:  Mapped[str] = mapped_column(String, nullable=True)
+    id:       Mapped[str] = mapped_column(String, primary_key=True)
+    name:     Mapped[str] = mapped_column(String)
+    parent:   Mapped[str] = mapped_column(String, nullable=True)
+    mainunit: Mapped[str] = mapped_column(String, nullable=True)
 
 # ──────────────────────────────────
 # 1. инициализация (создать таблицу, если нет; добавить новые столбцы)
@@ -31,15 +31,17 @@ class Nomenclature(Base):
 
 CREATE_SQL = """
 CREATE TABLE IF NOT EXISTS nomenclature (
-    id   VARCHAR PRIMARY KEY,
-    name TEXT NOT NULL
+    id        VARCHAR PRIMARY KEY,
+    name      TEXT NOT NULL,
+    parent    VARCHAR,
+    mainunit  VARCHAR
 );
 """
 
 ALTER_SQL = """
 ALTER TABLE nomenclature
-    ADD COLUMN IF NOT EXISTS code        VARCHAR,
-    ADD COLUMN IF NOT EXISTS parentgroup VARCHAR;
+    ADD COLUMN IF NOT EXISTS parent   VARCHAR,
+    ADD COLUMN IF NOT EXISTS mainunit VARCHAR;
 """
 
 async def init_db() -> None:
@@ -90,10 +92,10 @@ async def sync_nomenclature(api_rows: list[dict]):
         # ——— подготовить строки для UPSERT
         rows = [
             {
-                "id":          r["id"],
-                "name":        r.get("name"),
-                "code":        r.get("code"),
-                "parentgroup": r.get("parentGroup"),   # ← внимательно с регистром ключа!
+                "id":       r["id"],
+                "name":     r.get("name"),
+                "parent":   r.get("parent"),
+                "mainunit": r.get("mainUnit")
             }
             for r in api_rows
             if "id" in r
@@ -103,9 +105,9 @@ async def sync_nomenclature(api_rows: list[dict]):
         upsert = stmt.on_conflict_do_update(
             index_elements=["id"],
             set_={
-                "name":        stmt.excluded.name,
-                "code":        stmt.excluded.code,
-                "parentgroup": stmt.excluded.parentgroup,
+                "name":     stmt.excluded.name,
+                "parent":   stmt.excluded.parent,
+                "mainunit": stmt.excluded.mainunit,
             },
         )
         await session.execute(upsert)

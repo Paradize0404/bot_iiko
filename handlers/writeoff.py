@@ -2,7 +2,8 @@ from aiogram import Router, F, types
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from sqlalchemy import select
+from sqlalchemy import select, Column, String
+from sqlalchemy.orm import declarative_base
 from db.employees_db import async_session
 from handlers.template_creation import STORE_CACHE, preload_stores, search_nomenclature
 from handlers.use_template import get_unit_name_by_id
@@ -12,6 +13,16 @@ import httpx
 from datetime import datetime
 
 router = Router()
+
+Base = declarative_base()
+
+class ReferenceData(Base):
+    __tablename__ = "reference_data"
+
+    id = Column(String, primary_key=True)
+    root_type = Column(String)
+    name = Column(String)
+    code = Column(String)
 
 # FSM Состояния для акта списания
 class WriteoffStates(StatesGroup):
@@ -49,7 +60,7 @@ async def choose_store(callback: types.CallbackQuery, state: FSMContext):
 
     async with async_session() as session:
         result = await session.execute(
-            select().where(F.ReferenceData.root_type == "PaymentType")
+            select(ReferenceData).where(ReferenceData.root_type == "PaymentType")
         )
         all_payment_types = result.scalars().all()
         names = STORE_PAYMENT_FILTERS[store_name]

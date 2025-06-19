@@ -1,11 +1,17 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
-def main_menu_keyboard() -> ReplyKeyboardMarkup:
-    keyboard = [
-        [KeyboardButton(text="💰 Зарплата")],
-        [KeyboardButton(text="Команды")],
-        [KeyboardButton(text="Создание документа")]
-    ]
+# Список Telegram ID админов
+ADMINS = [123456789, 987654321]  # замените на реальные ID
+
+def main_menu_keyboard(user_id: int) -> ReplyKeyboardMarkup:
+    keyboard = []
+
+    if user_id in ADMINS:
+        keyboard.append([KeyboardButton(text="💰 Зарплата")])
+        keyboard.append([KeyboardButton(text="Команды")])
+
+    keyboard.append([KeyboardButton(text="Создание документа")])
+
     return ReplyKeyboardMarkup(
         keyboard=keyboard,
         resize_keyboard=True,

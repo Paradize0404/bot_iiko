@@ -64,7 +64,7 @@ async def get_name(message: Message, state: FSMContext):
 
             await message.answer(
                 "Вот главное меню:",
-                reply_markup=main_menu_keyboard(),
+                reply_markup=main_menu_keyboard(message.from_user.id),
             )
             await state.clear()
 
@@ -106,7 +106,7 @@ async def cancel_process(message: Message, state: FSMContext):
     await tidy_response(
         message,
         "❌ Действие отменено. Возвращаемся в главное меню.",
-        reply_markup=main_menu_keyboard(),
+        reply_markup=main_menu_keyboard(message.from_user.id),
     )
 
 

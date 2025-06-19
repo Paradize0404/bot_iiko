@@ -18,6 +18,7 @@ from db.stores_db import (
 
 from db.sprav_db import sync_all_references
 from db.supplier_db import sync_suppliers
+from db.accounts_data import sync_accounts
 logging.basicConfig(level=logging.INFO)
 
 router = Router()
@@ -164,3 +165,12 @@ async def sync_suppliers_command(message: Message):
     
     await sync_suppliers()
     await message.answer("🔄 Поставщики успешно синхронизированы.")
+
+
+@router.message(F.text == "/load_accounts")
+async def load_accounts_command(message: Message):
+    try:
+        await sync_accounts()
+        await message.answer("✅ Счета успешно загружены в таблицу accounts.")
+    except Exception as e:
+        await safe_send_error(message, e)

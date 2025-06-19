@@ -1,11 +1,12 @@
+from aiogram import Bot
 from aiogram import Router, F, types
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from sqlalchemy import select, Column, String
 from sqlalchemy.orm import declarative_base
-from db.employees_db import async_session
-from handlers.template_creation import STORE_CACHE, preload_stores, search_nomenclature
+from db.employees_db import async_session, Employee
+from handlers.template_creation import STORE_CACHE, preload_stores, search_nomenclature, Nomenclature
 from handlers.use_template import get_unit_name_by_id
 from iiko.iiko_auth import get_auth_token, get_base_url
 from html import escape
@@ -16,11 +17,11 @@ router = Router()
 
 Base = declarative_base()
 
-class ReferenceData(Base):
-    __tablename__ = "reference_data"
+class Accounts(Base):
+    __tablename__ = "accounts"
 
     id = Column(String, primary_key=True)
-    root_type = Column(String)
+    # root_type = Column(String)
     name = Column(String)
     code = Column(String)
 
@@ -35,9 +36,72 @@ class WriteoffStates(StatesGroup):
 # Кешируем склад -> допустимые типы списания
 STORE_PAYMENT_FILTERS = {
     "Бар": ["Списание бар порча", "Списание бар пролив", "Списание бар проработка"],
-    "Кухня": ["Списание кухня порча", "Списание кухня проработка", "Питание персонал"],
-    "Кондитерский": ["Списание кондитерский порча"]
+    "Кухня": ["Списание кухня порча", "Списание кухня проработка", "Питание персонала"],
+    "Кондитерский": ["Списание кондитерка порча"]
 }
+
+
+async def search_nomenclature_by_type(partial_name: str, required_type: str = "product") -> list[dict]:
+    async with async_session() as session:
+        terms = [t.strip() for t in partial_name.lower().split() if t.strip()]
+        if not terms:
+            return []
+
+        query = select(Nomenclature.id, Nomenclature.name, Nomenclature.mainunit).limit(50)
+        query = query.where(Nomenclature.type == required_type)
+
+        for term in terms:
+            query = query.where(Nomenclature.name.ilike(f"%{term}%"))
+
+        result = await session.execute(query)
+        rows = result.all()
+        return [{"id": r.id, "name": r.name, "mainunit": r.mainunit} for r in rows]
+
+
+async def search_nomenclature_for_writeoff(partial_name: str) -> list[dict]:
+    async with async_session() as session:
+        terms = [t.strip() for t in partial_name.lower().split() if t.strip()]
+        if not terms:
+            return []
+
+        query = select(Nomenclature.id, Nomenclature.name, Nomenclature.mainunit, Nomenclature.type).limit(50)
+        query = query.where(Nomenclature.type.in_(["GOODS", "PREPARED"]))
+
+        for term in terms:
+            query = query.where(Nomenclature.name.ilike(f"%{term}%"))
+
+        result = await session.execute(query)
+        rows = result.all()
+        return [{"id": r.id, "name": r.name, "mainunit": r.mainunit} for r in rows]
+
+
+async def update_writeoff_header(bot: Bot, chat_id: int, msg_id: int, data: dict):
+    store = data.get("store_name", "—")
+    account = data.get("account_name", "—")
+    reason = data.get("reason", "—")
+    comment = data.get("comment", "—")
+    author = data.get("user_fullname", "—")
+
+    text = (
+        f"📄 <b>Акт списания</b>\n"
+        f"🏬 <b>Склад:</b> {store}\n"
+        f"📂 <b>Тип списания:</b> {account}\n"
+        f"📝 <b>Причина:</b> {reason}\n"
+        f"💬 <b>Комментарий:</b> {comment}\n"
+        f"👤 <b>Сотрудник:</b> {author}"
+    )
+
+    try:
+        await bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=msg_id,
+            text=text,
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        logging.warning(f"⚠️ Не удалось обновить заголовок: {e}")
+
+
 
 @router.callback_query(F.data == "doc:writeoff")
 async def start_writeoff(callback: types.CallbackQuery, state: FSMContext):
@@ -59,53 +123,126 @@ async def choose_store(callback: types.CallbackQuery, state: FSMContext):
     await state.update_data(store_name=store_name, store_id=store_id)
 
     async with async_session() as session:
-        result = await session.execute(
-            select(ReferenceData).where(ReferenceData.root_type == "PaymentType")
-        )
-        all_payment_types = result.scalars().all()
         names = STORE_PAYMENT_FILTERS[store_name]
-        filtered = [pt for pt in all_payment_types if pt.name in names]
+        print(f"🔍 Поиск типов списания для склада: {store_name}")
+        print(f"➡️ Ожидаемые названия: {names}")
+
+        result = await session.execute(
+            select(Accounts)
+            # .where(Accounts.root_type == "PaymentType")
+            .where(Accounts.name.in_(names))
+        )
+        filtered = result.scalars().all()
+
+        print(f"✅ Найдено в базе: {[f'{pt.name} ({pt.id})' for pt in filtered]}")
+
+        if not filtered:
+            await callback.message.edit_text("⚠️ Не найдено ни одного подходящего типа списания в базе.")
+            return
 
         keyboard = InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text=pt.name, callback_data=f"w_type:{pt.id}:{pt.name}")]
+            inline_keyboard=[[InlineKeyboardButton(text=pt.name, callback_data=f"w_type:{pt.id}")]
                              for pt in filtered]
         )
         await state.set_state(WriteoffStates.PaymentType)
-        await callback.message.edit_text("📂 Какой тип списания?", reply_markup=keyboard)
+
+        # 🧩 Сохраняем ID исходного сообщения — туда запишем заголовок
+        await state.update_data(header_msg_id=callback.message.message_id)
+
+        # 🔐 Имя пользователя
+        tg_id = str(callback.from_user.id)
+        async with async_session() as session:
+            result = await session.execute(select(Employee).where(Employee.telegram_id == tg_id))
+            user = result.scalar_one_or_none()
+            full_name = f"{user.first_name} {user.last_name}" if user else "Неизвестно"
+
+        await state.update_data(user_fullname=full_name)
+
+
+
+        # ⬇️ Теперь под шапкой отправляем типы списания
+        await callback.message.answer("📂 Какой тип списания?", reply_markup=keyboard)
+
 
 @router.callback_query(F.data.startswith("w_type:"))
 async def choose_type(callback: types.CallbackQuery, state: FSMContext):
-    _, type_id, type_name = callback.data.split(":", 2)
-    await state.update_data(payment_type_id=type_id, payment_type_name=type_name)
+    type_id = callback.data.split(":")[1]
+    async with async_session() as session:
+        result = await session.execute(select(Accounts).where(Accounts.id == type_id))
+        ref = result.scalar_one_or_none()
+
+    if not ref:
+        return await callback.message.edit_text("❌ Тип списания не найден.")
+
+    await state.update_data(
+        payment_type_id=ref.id,
+        payment_type_name=ref.name,
+        search_msg_id=callback.message.message_id  # 👈 сохраняем id этого сообщения
+    )
+
     await state.set_state(WriteoffStates.Comment)
-    await callback.message.edit_text("✍️ Укажи причину списания:")
+    await callback.message.edit_text(f"✍️ Укажи причину списания для типа «{ref.name}»:")
+    data = await state.get_data()
+    await update_writeoff_header(callback.message.bot, callback.message.chat.id, data["header_msg_id"], {
+        **data,
+        "account_name": ref.name
+    })
 
 @router.message(WriteoffStates.Comment)
 async def get_comment(message: types.Message, state: FSMContext):
     comment = message.text.strip()
     await message.delete()
-    tg_id = message.from_user.id
+    tg_id = str(message.from_user.id)
+
     async with async_session() as session:
-        result = await session.execute(select().where(F.Employees.telegram_id == str(tg_id)))
+        result = await session.execute(
+            select(Employee).where(Employee.telegram_id == tg_id)
+        )
         user = result.scalar_one_or_none()
-        name = user.name if user else "Неизвестно"
-    await state.update_data(comment=comment + f" | Ввел: {name}", items=[])
+        full_name = f"{user.first_name} {user.last_name}" if user else "Неизвестно"
+
+    await state.update_data(comment=comment + f" | Ввел: {full_name}", items=[])
     await state.set_state(WriteoffStates.AddItems)
-    await message.answer("🔍 Введите часть названия товара:")
+    data = await state.get_data()
+    msg_id = data.get("search_msg_id")
+
+    if not msg_id:
+        # если мы не сохраняли раньше — просто отправим новое сообщение
+        msg = await message.answer("🔍 Введите часть названия товара:")
+        await state.update_data(search_msg_id=msg.message_id)
+        data = await state.get_data()
+        await update_writeoff_header(message.bot, message.chat.id, data["header_msg_id"], data)
+    else:
+        # если сообщение уже есть — редактируем
+        await message.bot.edit_message_text(
+            "🔍 Введите часть названия товара:",
+            chat_id=message.chat.id,
+            message_id=msg_id
+        )
 
 @router.message(WriteoffStates.AddItems)
 async def search_products(message: types.Message, state: FSMContext):
     query = message.text.strip()
     await message.delete()
-    results = await search_nomenclature(query)
+    results = await search_nomenclature_for_writeoff(query)
     if not results:
         return await message.answer("🔎 Ничего не найдено.")
+
+    data = await state.get_data()  # 🔧 Добавлено это
+
     await state.update_data(nomenclature_cache={r['id']: r for r in results})
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=r['name'], callback_data=f"w_item:{r['id']}")]
         for r in results
     ])
-    await message.answer("Выберите товар:", reply_markup=kb)
+    msg_id = data.get("search_msg_id")
+    if msg_id:
+        await message.bot.edit_message_text(
+            "Выберите товар:",
+            chat_id=message.chat.id,
+            message_id=msg_id,
+            reply_markup=kb
+        )
 
 @router.callback_query(F.data.startswith("w_item:"))
 async def ask_quantity(callback: types.CallbackQuery, state: FSMContext):
@@ -115,7 +252,10 @@ async def ask_quantity(callback: types.CallbackQuery, state: FSMContext):
     await state.update_data(current_item=item)
     unit = await get_unit_name_by_id(item["mainunit"])
     await state.set_state(WriteoffStates.Quantity)
-    await callback.message.answer(f"📏 Сколько {unit} для «{item['name']}»?")
+    await callback.message.edit_text(
+        f"📏 🖊 Сколько {unit} для «{item['name']}»?"
+    )
+    await state.update_data(quantity_msg_id=callback.message.message_id)
 
 @router.message(WriteoffStates.Quantity)
 async def save_quantity(message: types.Message, state: FSMContext):
@@ -127,15 +267,30 @@ async def save_quantity(message: types.Message, state: FSMContext):
         items = data["items"]
         items.append(item)
         await state.update_data(items=items)
+        await message.delete()
     except:
         return await message.answer("⚠️ Введите корректное число")
+
     await state.set_state(WriteoffStates.AddItems)
+
+    # Кнопка «Готово» без предложения добавить
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="➕ Добавить еще", callback_data="w_more")],
         [InlineKeyboardButton(text="✅ Готово", callback_data="w_done")]
     ])
-    await message.answer("Добавлено. Что дальше?", reply_markup=kb)
-    await message.delete()
+    msg_id = data.get("quantity_msg_id")
+    if msg_id:
+        await message.bot.edit_message_text(
+            "🔍 Введите часть названия следующего товара или нажмите «Готово»:",
+            chat_id=message.chat.id,
+            message_id=msg_id,
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="✅ Готово", callback_data="w_done")]
+            ])
+        )
+        header_id = data.get("header_msg_id")
+        if header_id:
+            await update_writeoff_header(message.bot, message.chat.id, header_id, data)
+
 
 @router.callback_query(F.data == "w_more")
 async def more_items(callback: types.CallbackQuery, state: FSMContext):
@@ -160,6 +315,9 @@ async def finalize_writeoff(callback: types.CallbackQuery, state: FSMContext):
             } for item in data["items"]
         ]
     }
+
+    print("📦 Финальный JSON-документ для iiko:")
+    print(document)
 
     token = await get_auth_token()
     url = f"{get_base_url()}/resto/api/v2/documents/writeoff"

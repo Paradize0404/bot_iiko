@@ -50,6 +50,7 @@ class Nomenclature(Base):
     name = Column(String)
     parent = Column(String)
     mainunit = Column("mainunit", String)
+    type = Column(String)
 
 
 class Supplier(Base):

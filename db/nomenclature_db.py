@@ -24,6 +24,7 @@ class Nomenclature(Base):
     name:     Mapped[str] = mapped_column(String)
     parent:   Mapped[str] = mapped_column(String, nullable=True)
     mainunit: Mapped[str] = mapped_column(String, nullable=True)
+    type: Mapped[str] = mapped_column(String, nullable=True)
 
 # ──────────────────────────────────
 # 1. инициализация (создать таблицу, если нет; добавить новые столбцы)
@@ -34,6 +35,7 @@ CREATE TABLE IF NOT EXISTS nomenclature (
     id        VARCHAR PRIMARY KEY,
     name      TEXT NOT NULL,
     parent    VARCHAR,
+    mainunit  VARCHAR,
     mainunit  VARCHAR
 );
 """
@@ -41,7 +43,8 @@ CREATE TABLE IF NOT EXISTS nomenclature (
 ALTER_SQL = """
 ALTER TABLE nomenclature
     ADD COLUMN IF NOT EXISTS parent   VARCHAR,
-    ADD COLUMN IF NOT EXISTS mainunit VARCHAR;
+    ADD COLUMN IF NOT EXISTS mainunit VARCHAR,
+    ADD COLUMN IF NOT EXISTS type VARCHAR;
 """
 
 async def init_db() -> None:
@@ -95,7 +98,8 @@ async def sync_nomenclature(api_rows: list[dict]):
                 "id":       r["id"],
                 "name":     r.get("name"),
                 "parent":   r.get("parent"),
-                "mainunit": r.get("mainUnit")
+                "mainunit": r.get("mainUnit"),
+                "type": r.get("type")
             }
             for r in api_rows
             if "id" in r
@@ -108,6 +112,7 @@ async def sync_nomenclature(api_rows: list[dict]):
                 "name":     stmt.excluded.name,
                 "parent":   stmt.excluded.parent,
                 "mainunit": stmt.excluded.mainunit,
+                "type": stmt.excluded.type,
             },
         )
         await session.execute(upsert)

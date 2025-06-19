@@ -1,7 +1,7 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
 # Список Telegram ID админов
-ADMINS = [123456789, 987654321]  # замените на реальные ID
+ADMINS = [1877127405, 1059714785]  # замените на реальные ID
 
 def main_menu_keyboard(user_id: int) -> ReplyKeyboardMarkup:
     keyboard = []

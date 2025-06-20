@@ -10,6 +10,8 @@ from handlers import commands # твои роутеры
 from handlers import use_template
 from utils.db_stores import init_pool
 from handlers import writeoff
+from keyboards import main_keyboard
+from handlers import writeoff_upload
 # from utils.db_stores import init_pool
 
 logging.basicConfig(level=logging.INFO)
@@ -21,6 +23,8 @@ dp.include_router(document.router)
 dp.include_router(template_creation.router)
 dp.include_router(writeoff.router)
 dp.include_router(salary.router)
+dp.include_router(main_keyboard.router)
+dp.include_router(writeoff_upload.router)
 dp.include_router(use_template.router)
 
 logging.info("✅ Routers registered")

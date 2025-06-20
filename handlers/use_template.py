@@ -348,11 +348,16 @@ async def handle_quantity_input(message: types.Message, state: FSMContext):
 
         # Генерация XML и отправка
         xml_data = build_xml(final_data)
-        # print("📦 XML перед отправкой:\n", xml)
         print("📦 Отправляем XML в iiko:\n", xml_data)
         result_msg = await send_to_iiko(xml_data)
-        invoice_xml = build_invoice_xml(final_data)
-        invoice_msg = await send_invoice_to_iiko(invoice_xml)
+
+        invoice_msg = ""
+        if final_data.get("supplier_id") and all("price" in i for i in items):
+            invoice_xml = build_invoice_xml(final_data)
+            invoice_msg = await send_invoice_to_iiko(invoice_xml)
+        else:
+            invoice_msg = "ℹ️ Расходная накладная не создавалась."
+
         escaped = escape(result_msg + "\n\n" + invoice_msg)
         await message.answer(f"<pre>{escaped}</pre>", parse_mode="HTML")
 

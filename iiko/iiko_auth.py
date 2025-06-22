@@ -20,7 +20,7 @@ async def get_auth_token() -> str:
     }
 
     try:
-        response = httpx.post(auth_url, headers=headers, data=data, verify=False)
+        response = httpx.post(auth_url, headers=headers, data=data, verify=False, timeout=20.0)
         response.raise_for_status()
         token = response.text.strip()
         if not token:

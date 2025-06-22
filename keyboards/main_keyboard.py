@@ -36,9 +36,11 @@ def get_document_type_keyboard():
 def get_reports_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
+            [KeyboardButton(text='📈 Выручка / Себестоимость')],      # Новый отчёт
+            [KeyboardButton(text='📑 Себестоимость по категориям')],  # Новый отчёт
             [KeyboardButton(text='💰 Зарплата')],
             [KeyboardButton(text='📉 Списания')],
-            [KeyboardButton(text='🔙 Назад')]  # Чтобы вернуться в главное меню
+            [KeyboardButton(text='🔙 Назад')]
         ],
         resize_keyboard=True,
         input_field_placeholder="Выберите тип отчета"

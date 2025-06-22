@@ -12,6 +12,7 @@ from utils.db_stores import init_pool
 from handlers import writeoff
 from keyboards import main_keyboard
 from handlers import writeoff_upload
+from handlers import sales_olap_console
 # from utils.db_stores import init_pool
 
 logging.basicConfig(level=logging.INFO)
@@ -19,6 +20,7 @@ logging.info("📦 Initializing Dispatcher")
 
 dp = Dispatcher(storage=MemoryStorage())
 dp.include_router(commands.router)
+dp.include_router(sales_olap_console.router)
 dp.include_router(document.router)
 dp.include_router(template_creation.router)
 dp.include_router(writeoff.router)

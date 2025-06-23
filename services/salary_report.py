@@ -76,6 +76,7 @@ def build_report(employee_data, total_by_employee, payments_by_employee, work_da
 
     total_sum = 0
     department_blocks = {}
+    department_totals = {}
     start_dt = datetime.fromisoformat(from_date)
     days_in_month = monthrange(start_dt.year, start_dt.month)[1]
     selected_days = (datetime.fromisoformat(to_date) - start_dt).days + 1
@@ -115,7 +116,15 @@ def build_report(employee_data, total_by_employee, payments_by_employee, work_da
         else:
             total_pay = round(rate * hours, 2)
 
-        total_sum += paid_sum + commission_sum
+        # Итоговая сумма для сотрудника (по часам/сменам + процент)
+        final_paid = paid_sum + commission_sum
+        total_sum += final_paid
+
+        # Копим итоги по отделу
+        if department not in department_blocks:
+            department_blocks[department] = []
+            department_totals[department] = 0
+        department_totals[department] += final_paid
 
         block = f"\U0001F464 <b>{name}</b>\n"
         if monthly:
@@ -125,18 +134,23 @@ def build_report(employee_data, total_by_employee, payments_by_employee, work_da
         else:
             block += f"⏱ {hours:.2f} ч × {rate:.0f} ₽ = {total_pay:,.0f} ₽\n"
 
-        block += f"\U0001F4B0 Начислено: {paid_sum:,.2f} ₽\n"
+        # В блоке "Начислено" выводим итоговую сумму (включая процент)
+        block += f"\U0001F4B0 Начислено: {final_paid:,.2f} ₽"
+        if percent > 0 and total_revenue is not None:
+            block += f" ({paid_sum:,.2f} ₽ + {commission_sum:,.2f} ₽)"
+        block += "\n"
 
+        # Дополнительно расшифровываем процент (если есть)
         if percent > 0 and total_revenue is not None:
             block += f"\U0001F4C8 {percent:.1f}% от выручки: {commission_sum:,.2f} ₽\n"
 
-        if department not in department_blocks:
-            department_blocks[department] = []
         department_blocks[department].append(block)
 
     for department, blocks in department_blocks.items():
         result.append(f"\n<b>\U0001F4CC Отдел: {department}</b>")
         result.extend(blocks)
+        # Итог по отделу
+        result.append(f"<b>Итого по отделу: {department_totals[department]:,.2f} ₽</b>\n")
 
     result.append(f"\n\U0001F9FE <b>Общая сумма выплат:</b> {total_sum:,.2f} ₽")
     return "\n".join(result)

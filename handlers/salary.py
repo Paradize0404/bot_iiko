@@ -19,7 +19,11 @@ async def salary_menu(message: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("CAL:salary_start"))
 async def handle_salary_start_calendar(callback: CallbackQuery, state: FSMContext):
+    print("HANDLE_START_CALENDAR callback.data:", callback.data)
+    cur_state = await state.get_state()
+    print("FSM STATE (start):", cur_state)
     data = parse_callback_data(callback.data)
+    print("PARSED DATA (start):", data)
     if not data or data["action"] == "IGNORE":
         await callback.answer()
         return
@@ -39,6 +43,7 @@ async def handle_salary_start_calendar(callback: CallbackQuery, state: FSMContex
 
     if data["action"] == "DATE":
         selected_date = data["date"]
+        print("SELECTED DATE (start):", selected_date)
         await state.update_data(from_date=selected_date.isoformat())
         await state.set_state(SalaryStates.selecting_end)
         today = datetime.today()
@@ -47,7 +52,11 @@ async def handle_salary_start_calendar(callback: CallbackQuery, state: FSMContex
 
 @router.callback_query(F.data.startswith("CAL:salary_end"))
 async def handle_salary_end_calendar(callback: CallbackQuery, state: FSMContext):
+    print("HANDLE_END_CALENDAR callback.data:", callback.data)
+    cur_state = await state.get_state()
+    print("FSM STATE (end):", cur_state)
     data = parse_callback_data(callback.data)
+    print("PARSED DATA (end):", data)
     if not data or data["action"] == "IGNORE":
         await callback.answer()
         return
@@ -67,8 +76,10 @@ async def handle_salary_end_calendar(callback: CallbackQuery, state: FSMContext)
 
     if data["action"] == "DATE":
         selected_date = data["date"]
+        print("SELECTED DATE (end):", selected_date)
         state_data = await state.get_data()
-        from_date = state_data["from_date"]
+        from_date = state_data.get("from_date")
+        print("FROM_DATE from state (end):", from_date)
         to_date = selected_date.isoformat()
         from_dt, to_dt = sorted([
             datetime.fromisoformat(from_date).date(),

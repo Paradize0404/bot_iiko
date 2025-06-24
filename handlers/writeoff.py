@@ -1,3 +1,6 @@
+
+
+import re
 import logging
 from aiogram import Bot
 from aiogram import Router, F, types
@@ -13,7 +16,7 @@ from iiko.iiko_auth import get_auth_token, get_base_url
 from html import escape
 import httpx
 from datetime import datetime
-
+from keyboards.main_keyboard import cancel_process
 router = Router()
 
 Base = declarative_base()
@@ -82,6 +85,7 @@ async def update_writeoff_header(bot: Bot, chat_id: int, msg_id: int, data: dict
     reason = data.get("reason", "—")
     comment = data.get("comment", "—")
     author = data.get("user_fullname", "—")
+    items = data.get("items", [])
 
     text = (
         f"📄 <b>Акт списания</b>\n"
@@ -91,6 +95,16 @@ async def update_writeoff_header(bot: Bot, chat_id: int, msg_id: int, data: dict
         f"💬 <b>Комментарий:</b> {comment}\n"
         f"👤 <b>Сотрудник:</b> {author}"
     )
+
+    if items:
+        text += "\n<b>Товары:</b>\n"
+        for i, item in enumerate(items, 1):
+            unit = await get_unit_name_by_id(item['mainunit'])
+            value = item.get("user_quantity", "—")
+            if unit.lower() in ["кг", "kg", "килограмм"]:
+                text += f"{i}. {item['name']} — <b>{value} г</b>\n"
+            else:
+                text += f"{i}. {item['name']} — <b>{value} {unit}</b>\n"
 
     try:
         await bot.edit_message_text(
@@ -252,10 +266,15 @@ async def ask_quantity(callback: types.CallbackQuery, state: FSMContext):
     item = data.get("nomenclature_cache", {}).get(item_id)
     await state.update_data(current_item=item)
     unit = await get_unit_name_by_id(item["mainunit"])
+
+    # Если кг — спрашиваем граммы, иначе как обычно
+    if unit.lower() in ["кг", "kg", "килограмм"]:
+        text = f"📏 🖊 Сколько грамм для «{item['name']}»?"
+    else:
+        text = f"📏 🖊 Сколько {unit} для «{item['name']}»?"
+
     await state.set_state(WriteoffStates.Quantity)
-    await callback.message.edit_text(
-        f"📏 🖊 Сколько {unit} для «{item['name']}»?"
-    )
+    await callback.message.edit_text(text)
     await state.update_data(quantity_msg_id=callback.message.message_id)
 
 @router.message(WriteoffStates.Quantity)
@@ -264,7 +283,16 @@ async def save_quantity(message: types.Message, state: FSMContext):
     try:
         qty = float(message.text.replace(",", "."))
         item = data["current_item"]
-        item["quantity"] = qty
+        unit = await get_unit_name_by_id(item["mainunit"])
+
+        if unit.lower() in ["кг", "kg", "килограмм"]:
+            # Сохраняем для показа граммы (user_quantity), для iiko переводим в кг
+            item["user_quantity"] = qty  # граммы
+            item["quantity"] = qty / 1000  # для iiko
+        else:
+            item["user_quantity"] = qty
+            item["quantity"] = qty  # всё как было
+
         items = data["items"]
         items.append(item)
         await state.update_data(items=items)
@@ -273,11 +301,6 @@ async def save_quantity(message: types.Message, state: FSMContext):
         return await message.answer("⚠️ Введите корректное число")
 
     await state.set_state(WriteoffStates.AddItems)
-
-    # Кнопка «Готово» без предложения добавить
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Готово", callback_data="w_done")]
-    ])
     msg_id = data.get("quantity_msg_id")
     if msg_id:
         await message.bot.edit_message_text(
@@ -290,7 +313,8 @@ async def save_quantity(message: types.Message, state: FSMContext):
         )
         header_id = data.get("header_msg_id")
         if header_id:
-            await update_writeoff_header(message.bot, message.chat.id, header_id, data)
+            new_data = await state.get_data()
+            await update_writeoff_header(message.bot, message.chat.id, header_id, new_data)
 
 
 @router.callback_query(F.data == "w_more")

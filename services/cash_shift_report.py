@@ -2,7 +2,7 @@ import httpx
 from iiko.iiko_auth import get_auth_token, get_base_url  # ⬅️ относительный импорт
 
 
-async def get_cash_shift_total_payorders(from_date: str, to_date: str) -> float:
+async def get_cash_shifts_with_details(from_date: str, to_date: str) -> float:
     token = await get_auth_token()
     base_url = get_base_url()
 
@@ -27,6 +27,13 @@ async def get_cash_shift_total_payorders(from_date: str, to_date: str) -> float:
     except Exception as e:
         raise Exception(f"Ошибка при разборе JSON: {e}")
 
-    # Суммируем значения поля payOrders (если оно есть)
-    pay_orders_sum = sum(shift.get("payOrders", 0) for shift in data)
-    return pay_orders_sum
+    return [
+        {
+            "id": shift.get("id"),
+            "openDate": shift.get("openDate"),
+            "closeDate": shift.get("closeDate"),
+            "payOrders": shift.get("payOrders", 0)
+            # другие поля, если нужны
+        }
+        for shift in data
+    ]

@@ -13,6 +13,7 @@ from handlers import writeoff
 from keyboards import main_keyboard
 from handlers import writeoff_upload
 from handlers import sales_olap_console
+from handlers import internal_transfer_upload
 # from utils.db_stores import init_pool
 
 logging.basicConfig(level=logging.DEBUG)
@@ -26,7 +27,7 @@ dp.include_router(sales_olap_console.router)
 dp.include_router(document.router)
 dp.include_router(template_creation.router)
 dp.include_router(writeoff.router)
-
+dp.include_router(internal_transfer_upload.router)
 dp.include_router(main_keyboard.router)
 
 dp.include_router(use_template.router)

@@ -25,9 +25,7 @@ async def handle_writeoff(callback: types.CallbackQuery, state: FSMContext):
     await start_writeoff(callback, state)  # 🧠 Запускаем FSM списания
 
 
-@router.callback_query(F.data == "doc:move")
-async def handle_move_placeholder(callback: types.CallbackQuery):
-    await callback.answer("⛔️ Пока не реализовано", show_alert=True)
+
 
 
 

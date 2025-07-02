@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, Mapped, mapped_column, declarative_base
 from sqlalchemy import String, select, func, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-
+from sqlalchemy import ForeignKey, Float
 # ─────────── настройки ───────────
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -17,6 +17,16 @@ async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession
 Base = declarative_base()
 
 # ─────────── ORM-модель ───────────
+class NomenclatureStoreBalance(Base):
+    __tablename__ = "nomenclature_store_balance"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    product_id: Mapped[str] = mapped_column(String, ForeignKey("nomenclature.id"))
+    store_id: Mapped[str] = mapped_column(String)
+    min_balance_level: Mapped[float] = mapped_column(Float, nullable=True)
+    max_balance_level: Mapped[float] = mapped_column(Float, nullable=True)
+
+
 class Nomenclature(Base):
     __tablename__ = "nomenclature"
 
@@ -29,7 +39,15 @@ class Nomenclature(Base):
 # ──────────────────────────────────
 # 1. инициализация (создать таблицу, если нет; добавить новые столбцы)
 # ──────────────────────────────────
-
+CREATE_BALANCE_SQL = """
+CREATE TABLE IF NOT EXISTS nomenclature_store_balance (
+    id SERIAL PRIMARY KEY,
+    product_id VARCHAR NOT NULL REFERENCES nomenclature(id),
+    store_id VARCHAR NOT NULL,
+    min_balance_level FLOAT,
+    max_balance_level FLOAT
+);
+"""
 CREATE_SQL = """
 CREATE TABLE IF NOT EXISTS nomenclature (
     id        VARCHAR PRIMARY KEY,
@@ -51,7 +69,8 @@ async def init_db() -> None:
     async with engine.begin() as conn:
         await conn.execute(text(CREATE_SQL))
         await conn.execute(text(ALTER_SQL))
-    print("✅ Таблица nomenclature готова.")
+        await conn.execute(text(CREATE_BALANCE_SQL)) 
+    print("✅ Таблицы nomenclature и balances готовы.")
 
 # async def init_db():
 #     async with engine.begin() as conn:

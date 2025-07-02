@@ -156,6 +156,11 @@ async def sync_store_balances(api_rows: list[dict]):
                         "max_balance_level": max_bal,
                     })
 
+        # ← Вот здесь, после цикла!
+        print("DEBUG: Всего найдено store balances для записи:", len(balances))
+        if balances:
+            print("Пример:", balances[:3])
+
         product_ids = {b["product_id"] for b in balances if b["product_id"]}
         if product_ids:
             await session.execute(

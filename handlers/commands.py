@@ -7,7 +7,7 @@ from states import RegisterStates
 from keyboards.main_keyboard import main_menu_keyboard
 from services.employees import fetch_employees
 from db.employees_db import async_session, Employee
-from db.nomenclature_db import fetch_nomenclature, sync_nomenclature, init_db
+from db.nomenclature_db import fetch_nomenclature, sync_nomenclature, init_db, sync_store_balances
 from db.group_db import init_groups_table, fetch_groups, sync_groups
 from utils.telegram_helpers import safe_send_error, tidy_response
 from db.stores_db import (
@@ -96,7 +96,8 @@ async def load_products(message: Message):
         await init_db()
         data = await fetch_nomenclature()
         await sync_nomenclature(data)
-        await message.answer("✅ Номенклатура обновлена")
+        await sync_store_balances(data)  # <-- добавь этот вызов!
+        await message.answer("✅ Номенклатура и балансы обновлены")
     except Exception as e:
         await safe_send_error(message, e)
 

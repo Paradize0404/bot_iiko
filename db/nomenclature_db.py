@@ -3,9 +3,9 @@ import os, httpx, asyncio
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, Mapped, mapped_column, declarative_base
-from sqlalchemy import String, select, func, text
+from sqlalchemy import String, Float, select, func, text, ForeignKey
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy import ForeignKey, Float
+
 # ─────────── настройки ───────────
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -16,8 +16,17 @@ engine        = create_async_engine(DATABASE_URL, echo=False)
 async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 Base = declarative_base()
 
-# ─────────── ORM-модель ───────────
-class NomenclatureStoreBalance(Base):
+# ─────────── ORM-модели ───────────
+class Nomenclature(Base):
+    __tablename__ = "nomenclature"
+
+    id:       Mapped[str] = mapped_column(String, primary_key=True)
+    name:     Mapped[str] = mapped_column(String)
+    parent:   Mapped[str] = mapped_column(String, nullable=True)
+    mainunit: Mapped[str] = mapped_column(String, nullable=True)
+    type:     Mapped[str] = mapped_column(String, nullable=True)
+
+class NomenclatureStoreBalance(Base):   # ⬅️ NEW
     __tablename__ = "nomenclature_store_balance"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -26,35 +35,17 @@ class NomenclatureStoreBalance(Base):
     min_balance_level: Mapped[float] = mapped_column(Float, nullable=True)
     max_balance_level: Mapped[float] = mapped_column(Float, nullable=True)
 
-
-class Nomenclature(Base):
-    __tablename__ = "nomenclature"
-
-    id:       Mapped[str] = mapped_column(String, primary_key=True)
-    name:     Mapped[str] = mapped_column(String)
-    parent:   Mapped[str] = mapped_column(String, nullable=True)
-    mainunit: Mapped[str] = mapped_column(String, nullable=True)
-    type: Mapped[str] = mapped_column(String, nullable=True)
-
 # ──────────────────────────────────
-# 1. инициализация (создать таблицу, если нет; добавить новые столбцы)
+# 1. инициализация (создать таблицы, если нет)
 # ──────────────────────────────────
-CREATE_BALANCE_SQL = """
-CREATE TABLE IF NOT EXISTS nomenclature_store_balance (
-    id SERIAL PRIMARY KEY,
-    product_id VARCHAR NOT NULL REFERENCES nomenclature(id),
-    store_id VARCHAR NOT NULL,
-    min_balance_level FLOAT,
-    max_balance_level FLOAT
-);
-"""
+
 CREATE_SQL = """
 CREATE TABLE IF NOT EXISTS nomenclature (
     id        VARCHAR PRIMARY KEY,
     name      TEXT NOT NULL,
     parent    VARCHAR,
     mainunit  VARCHAR,
-    mainunit  VARCHAR
+    type      VARCHAR
 );
 """
 
@@ -65,17 +56,22 @@ ALTER TABLE nomenclature
     ADD COLUMN IF NOT EXISTS type VARCHAR;
 """
 
+CREATE_BALANCE_SQL = """         -- ⬅️ NEW
+CREATE TABLE IF NOT EXISTS nomenclature_store_balance (
+    id SERIAL PRIMARY KEY,
+    product_id VARCHAR NOT NULL REFERENCES nomenclature(id),
+    store_id VARCHAR NOT NULL,
+    min_balance_level FLOAT,
+    max_balance_level FLOAT
+);
+"""
+
 async def init_db() -> None:
     async with engine.begin() as conn:
         await conn.execute(text(CREATE_SQL))
         await conn.execute(text(ALTER_SQL))
-        await conn.execute(text(CREATE_BALANCE_SQL)) 
+        await conn.execute(text(CREATE_BALANCE_SQL))    # ⬅️ NEW
     print("✅ Таблицы nomenclature и balances готовы.")
-
-# async def init_db():
-#     async with engine.begin() as conn:
-#         await conn.execute(text(INIT_SQL))
-#     print("✅ Таблица nomenclature готова.")
 
 # ──────────────────────────────────
 # 2. получаем данные из iiko
@@ -93,7 +89,7 @@ async def fetch_nomenclature():
     return data
 
 # ──────────────────────────────────
-# 3. синхронизация таблицы
+# 3. синхронизация основной таблицы
 # ──────────────────────────────────
 async def sync_nomenclature(api_rows: list[dict]):
     async with async_session() as session:
@@ -118,7 +114,7 @@ async def sync_nomenclature(api_rows: list[dict]):
                 "name":     r.get("name"),
                 "parent":   r.get("parent"),
                 "mainunit": r.get("mainUnit"),
-                "type": r.get("type")
+                "type":     r.get("type")
             }
             for r in api_rows
             if "id" in r
@@ -131,7 +127,7 @@ async def sync_nomenclature(api_rows: list[dict]):
                 "name":     stmt.excluded.name,
                 "parent":   stmt.excluded.parent,
                 "mainunit": stmt.excluded.mainunit,
-                "type": stmt.excluded.type,
+                "type":     stmt.excluded.type,
             },
         )
         await session.execute(upsert)
@@ -140,14 +136,49 @@ async def sync_nomenclature(api_rows: list[dict]):
         total = await session.scalar(select(func.count()).select_from(Nomenclature))
         print(f"✅ Синхронизировано, записей в БД: {total}")
 
-# # ──────────────────────────────────
-# # 4. пример точка входа (вызывается из твоего /load_products)
-# # ──────────────────────────────────
-# async def main():
-#     await init_db()                        # гарантируем схему
-#     data = await fetch_nomenclature()      # тянем из iiko
-#     await sync_nomenclature(data)          # обновляем таблицу
+# ──────────────────────────────────
+# 4. синхронизация балансов (storeBalanceLevels)   ⬅️ NEW
+# ──────────────────────────────────
+async def sync_store_balances(api_rows: list[dict]):
+    async with async_session() as session:
+        # Собираем все балансы по продуктам
+        balances = []
+        for r in api_rows:
+            product_id = r.get("id")
+            for s in r.get("storeBalanceLevels", []):
+                balances.append({
+                    "product_id": product_id,
+                    "store_id": s.get("storeId"),
+                    "min_balance_level": s.get("minBalanceLevel"),
+                    "max_balance_level": s.get("maxBalanceLevel"),
+                })
 
-# # для локального теста: python nomenclature_db.py
-# if __name__ == "__main__":
-#     asyncio.run(main())
+        # Удалим старые балансы по этим продуктам
+        product_ids = {b["product_id"] for b in balances if b["product_id"]}
+        if product_ids:
+            await session.execute(
+                NomenclatureStoreBalance.__table__.delete().where(
+                    NomenclatureStoreBalance.product_id.in_(product_ids)
+                )
+            )
+
+        # Добавим новые
+        if balances:
+            await session.execute(
+                NomenclatureStoreBalance.__table__.insert(),
+                balances
+            )
+        await session.commit()
+        print(f"✅ Синхронизировано store balances для {len(product_ids)} товаров.")
+
+# ──────────────────────────────────
+# 5. точка входа
+# ──────────────────────────────────
+async def main():
+    await init_db()
+    data = await fetch_nomenclature()
+    await sync_nomenclature(data)
+    await sync_store_balances(data)  # ⬅️ NEW
+
+if __name__ == "__main__":
+    asyncio.run(main())

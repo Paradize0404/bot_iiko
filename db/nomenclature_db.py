@@ -141,19 +141,21 @@ async def sync_nomenclature(api_rows: list[dict]):
 # ──────────────────────────────────
 async def sync_store_balances(api_rows: list[dict]):
     async with async_session() as session:
-        # Собираем все балансы по продуктам
         balances = []
         for r in api_rows:
             product_id = r.get("id")
             for s in r.get("storeBalanceLevels", []):
-                balances.append({
-                    "product_id": product_id,
-                    "store_id": s.get("storeId"),
-                    "min_balance_level": s.get("minBalanceLevel"),
-                    "max_balance_level": s.get("maxBalanceLevel"),
-                })
+                min_bal = s.get("minBalanceLevel")
+                max_bal = s.get("maxBalanceLevel")
+                # Записываем только если есть хоть одно НЕ null значение
+                if min_bal is not None or max_bal is not None:
+                    balances.append({
+                        "product_id": product_id,
+                        "store_id": s.get("storeId"),
+                        "min_balance_level": min_bal,
+                        "max_balance_level": max_bal,
+                    })
 
-        # Удалим старые балансы по этим продуктам
         product_ids = {b["product_id"] for b in balances if b["product_id"]}
         if product_ids:
             await session.execute(
@@ -161,15 +163,13 @@ async def sync_store_balances(api_rows: list[dict]):
                     NomenclatureStoreBalance.product_id.in_(product_ids)
                 )
             )
-
-        # Добавим новые
         if balances:
             await session.execute(
                 NomenclatureStoreBalance.__table__.insert(),
                 balances
             )
         await session.commit()
-        print(f"✅ Синхронизировано store balances для {len(product_ids)} товаров.")
+        print(f"✅ Синхронизировано store balances для {len(product_ids)} товаров. Записано {len(balances)} балансов.")
 
 # ──────────────────────────────────
 # 5. точка входа

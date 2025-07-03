@@ -4,7 +4,7 @@ import httpx
 import asyncio
 import logging
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy import select, Column, String
+from sqlalchemy import select, Column, String, Float, Integer
 from sqlalchemy.orm import declarative_base
 from dotenv import load_dotenv
 
@@ -42,6 +42,14 @@ class Store(Base):
     __tablename__ = "stores"
     id = Column(String, primary_key=True)
     name = Column(String)
+
+class NomenclatureStoreBalance(Base):
+    __tablename__ = "nomenclature_store_balance"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    product_id = Column(String)
+    store_id = Column(String)
+    min_balance_level = Column(Float)
+    max_balance_level = Column(Float)
 
 # --- Импортируй авторизацию из своего файла ---
 from iiko.iiko_auth import get_auth_token, get_base_url
@@ -86,6 +94,18 @@ async def merge_with_nomenclature_and_store(raw_store_balance):
             item['store_name'] = store_map.get(item['store'], 'НЕИЗВЕСТНО')
         return raw_store_balance
 
+# --- Получить лимиты по всем товарам и складам ---
+async def get_min_balances_for_products(session):
+    result = await session.execute(
+        select(
+            NomenclatureStoreBalance.product_id,
+            NomenclatureStoreBalance.store_id,
+            NomenclatureStoreBalance.min_balance_level
+        )
+    )
+    # Маппинг: (product_id, store_id) -> min_balance_level
+    return {(row[0], row[1]): row[2] for row in result.all() if row[2] is not None}
+
 # --- Точка входа ---
 if __name__ == "__main__":
     sys.stderr = open(os.devnull, 'w')
@@ -97,15 +117,27 @@ if __name__ == "__main__":
         raw_balance = await get_store_balance_raw(timestamp, department=department_guid)
         merged = await merge_with_nomenclature_and_store(raw_balance)
 
-        # Выводим 10 строк для проверки
-        for row in merged[:10]:
-            print(row)
-        logger.info(f"Показано {min(10, len(merged))} строк из {len(merged)} остатков")
+        # --- Проверка остатков против лимитов ---
+        engine = create_async_engine(DATABASE_URL, echo=False)
+        async with AsyncSession(engine) as session:
+            min_balances = await get_min_balances_for_products(session)
+            violations = []
+            for row in merged:
+                key = (row["product"], row["store"])
+                min_limit = min_balances.get(key)
+                if min_limit is not None and row["amount"] < min_limit:
+                    violations.append({**row, "min_limit": min_limit})
+
+        for row in violations:
+            print(
+                f"{row['store_name']}: {row['product_name']} | Остаток: {row['amount']} < Мин.лимит: {row['min_limit']}"
+            )
+        logger.info(f"Нарушений лимитов: {len(violations)}")
 
         # --- (Необязательно) сохранить всё в Excel:
         # import pandas as pd
-        # df = pd.DataFrame(merged)
-        # df.to_excel("ostatki.xlsx", index=False)
-        # logger.info("Остатки сохранены в файл ostatki.xlsx")
+        # df = pd.DataFrame(violations)
+        # df.to_excel("ostatki_narusheniya.xlsx", index=False)
+        # logger.info("Нарушения лимитов сохранены в файл ostatki_narusheniya.xlsx")
 
     asyncio.run(main())

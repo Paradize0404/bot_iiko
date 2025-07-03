@@ -127,7 +127,11 @@ async def start_writeoff(callback: types.CallbackQuery, state: FSMContext):
         for name in STORE_PAYMENT_FILTERS
     ])
     await state.set_state(WriteoffStates.Store)
-    await callback.message.edit_text("🏬 С какого склада списываем?", reply_markup=keyboard)
+    if (
+        callback.message.text != "🏬 С какого склада списываем?"
+        or callback.message.reply_markup != keyboard
+    ):
+        await callback.message.edit_text("🏬 С какого склада списываем?", reply_markup=keyboard)
 
 @router.callback_query(F.data.startswith("w_store:"))
 async def choose_store(callback: types.CallbackQuery, state: FSMContext):

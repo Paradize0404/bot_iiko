@@ -329,6 +329,13 @@ async def more_items(callback: types.CallbackQuery, state: FSMContext):
 @router.callback_query(F.data == "w_done")
 async def finalize_writeoff(callback: types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
+    required_keys = ("comment", "store_id", "payment_type_id", "items")
+    if not all(k in data and data[k] for k in required_keys):
+        await callback.message.edit_text(
+            "❗ Не удалось завершить акт списания. Возможно, вы не заполнили все поля. Попробуйте начать заново."
+        )
+        await state.clear()
+        return
     date_now = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
     document = {
         "dateIncoming": date_now,

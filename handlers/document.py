@@ -6,6 +6,7 @@ from keyboards.main_keyboard import get_document_type_keyboard
 from handlers.use_template import get_template_keyboard
 from handlers.use_template import handle_prep_choice
 from handlers.writeoff import start_writeoff 
+from handlers.invoice import start_invoice  # Импортируешь функцию FSM
 router = Router()
 
 ADMIN_IDS = [1877127405, 6446544048]
@@ -26,6 +27,10 @@ async def handle_writeoff(callback: types.CallbackQuery, state: FSMContext):
 
 
 
+
+@router.callback_query(F.data == "doc:invoice")
+async def handle_invoice(callback: types.CallbackQuery, state: FSMContext):
+    await start_invoice(callback, state)
 
 
 

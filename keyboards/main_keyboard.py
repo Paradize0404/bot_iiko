@@ -29,7 +29,8 @@ def get_document_type_keyboard():
         inline_keyboard=[
             [InlineKeyboardButton(text="🧾 Акт приготовления", callback_data="doc:prep")],
             [InlineKeyboardButton(text="📉 Акт списания", callback_data="doc:writeoff")],
-            [InlineKeyboardButton(text="🔄 Внутреннее перемещение", callback_data="doc:move")]
+            [InlineKeyboardButton(text="🔄 Внутреннее перемещение", callback_data="doc:move")],
+            [InlineKeyboardButton(text="💸 Создать расход", callback_data="doc:invoice")],  # ← ДОБАВЬ ЭТУ СТРОКУ
         ]
     )
 

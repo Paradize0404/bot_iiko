@@ -209,7 +209,10 @@ async def choose_type(callback: types.CallbackQuery, state: FSMContext):
 @router.message(WriteoffStates.Comment)
 async def get_comment(message: types.Message, state: FSMContext):
     comment = message.text.strip()
-    await message.delete()
+    try:
+        await message.delete()
+    except Exception as e:
+        logging.warning(f"Не удалось удалить сообщение: {e}")
     tg_id = str(message.from_user.id)
 
     async with async_session() as session:
@@ -232,16 +235,22 @@ async def get_comment(message: types.Message, state: FSMContext):
         await update_writeoff_header(message.bot, message.chat.id, data["header_msg_id"], data)
     else:
         # если сообщение уже есть — редактируем
-        await message.bot.edit_message_text(
-            "🔍 Введите часть названия товара:",
-            chat_id=message.chat.id,
-            message_id=msg_id
-        )
+        try:
+            await message.bot.edit_message_text(
+                "🔍 Введите часть названия товара:",
+                chat_id=message.chat.id,
+                message_id=msg_id
+            )
+        except Exception as e:
+            logging.warning(f"Не удалось отредактировать сообщение: {e}")
 
 @router.message(WriteoffStates.AddItems)
 async def search_products(message: types.Message, state: FSMContext):
     query = message.text.strip()
-    await message.delete()
+    try:
+        await message.delete()
+    except Exception as e:
+        logging.warning(f"Не удалось удалить сообщение: {e}")
     results = await search_nomenclature_for_writeoff(query)
     if not results:
         return await message.answer("🔎 Ничего не найдено.")
@@ -255,12 +264,15 @@ async def search_products(message: types.Message, state: FSMContext):
     ])
     msg_id = data.get("search_msg_id")
     if msg_id:
-        await message.bot.edit_message_text(
-            "Выберите товар:",
-            chat_id=message.chat.id,
-            message_id=msg_id,
-            reply_markup=kb
-        )
+        try:
+            await message.bot.edit_message_text(
+                "Выберите товар:",
+                chat_id=message.chat.id,
+                message_id=msg_id,
+                reply_markup=kb
+            )
+        except Exception as e:
+            logging.warning(f"Не удалось отредактировать сообщение: {e}")
 
 @router.callback_query(F.data.startswith("w_item:"))
 async def ask_quantity(callback: types.CallbackQuery, state: FSMContext):
@@ -299,21 +311,27 @@ async def save_quantity(message: types.Message, state: FSMContext):
         items = data["items"]
         items.append(item)
         await state.update_data(items=items)
-        await message.delete()
+        try:
+            await message.delete()
+        except Exception as e:
+            logging.warning(f"Не удалось удалить сообщение: {e}")
     except:
         return await message.answer("⚠️ Введите корректное число")
 
     await state.set_state(WriteoffStates.AddItems)
     msg_id = data.get("quantity_msg_id")
     if msg_id:
-        await message.bot.edit_message_text(
-            "🔍 Введите часть названия следующего товара или нажмите «Готово»:",
-            chat_id=message.chat.id,
-            message_id=msg_id,
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="✅ Готово", callback_data="w_done")]
-            ])
-        )
+        try:
+            await message.bot.edit_message_text(
+                "🔍 Введите часть названия следующего товара или нажмите «Готово»:",
+                chat_id=message.chat.id,
+                message_id=msg_id,
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="✅ Готово", callback_data="w_done")]
+                ])
+            )
+        except Exception as e:
+            logging.warning(f"Не удалось отредактировать сообщение: {e}")
         header_id = data.get("header_msg_id")
         if header_id:
             new_data = await state.get_data()

@@ -20,6 +20,23 @@ import asyncio
 from keyboards.main_keyboard import cancel_process
 router = Router()
 
+
+def _normalize_unit(unit: str) -> str:
+    """Normalize unit name to simple codes: 'kg', 'ml', 'l', 'шт', etc."""
+    if not unit:
+        return ""
+    u = unit.strip().lower().replace('.', '')
+    # common mappings
+    if u in ("кг", "kg", "килограмм", "килограмма", "килограммов"):
+        return "kg"
+    if u in ("мл", "ml", "миллилитр", "миллилитра", "миллилитров"):
+        return "ml"
+    if u in ("л", "l", "литр", "литра", "литров"):
+        return "l"
+    if u in ("шт", "шт", "штук", "штука"):
+        return "шт"
+    return u
+
 Base = declarative_base()
 
 class Accounts(Base):
@@ -101,8 +118,13 @@ async def update_writeoff_header(bot: Bot, chat_id: int, msg_id: int, data: dict
         for i, item in enumerate(items, 1):
             unit = await get_unit_name_by_id(item['mainunit'])
             value = item.get("user_quantity", "—")
-            if unit.lower() in ["кг", "kg", "килограмм"]:
+            # Показ пользователю: если единица — килограммы, показываем в граммах;
+            # если литр/мл — показываем в мл; иначе показываем как есть.
+            norm = _normalize_unit(unit)
+            if norm == "kg":
                 text += f"{i}. {item['name']} — <b>{value} г</b>\n"
+            elif norm in ("l", "ml"):
+                text += f"{i}. {item['name']} — <b>{value} мл</b>\n"
             else:
                 text += f"{i}. {item['name']} — <b>{value} {unit}</b>\n"
 
@@ -282,10 +304,13 @@ async def ask_quantity(callback: types.CallbackQuery, state: FSMContext):
     item = data.get("nomenclature_cache", {}).get(item_id)
     await state.update_data(current_item=item)
     unit = await get_unit_name_by_id(item["mainunit"])
-
-    # Если кг — спрашиваем граммы, иначе как обычно
-    if unit.lower() in ["кг", "kg", "килограмм"]:
+    logging.info(f"[writeoff] ask_quantity: item={item.get('name')} mainunit_id={item.get('mainunit')} unit_from_db='{unit}'")
+    norm = _normalize_unit(unit)
+    logging.info(f"[writeoff] ask_quantity: normalized unit -> '{norm}'")
+    if norm == "kg":
         text = f"📏 🖊 Сколько грамм для «{item['name']}»?"
+    elif norm in ("l", "ml"):
+        text = f"📏 🖊 Сколько мл для «{item['name']}»?"
     else:
         text = f"📏 🖊 Сколько {unit} для «{item['name']}»?"
 
@@ -300,11 +325,21 @@ async def save_quantity(message: types.Message, state: FSMContext):
         qty = float(message.text.replace(",", "."))
         item = data["current_item"]
         unit = await get_unit_name_by_id(item["mainunit"])
-
-        if unit.lower() in ["кг", "kg", "килограмм"]:
+        logging.info(f"[writeoff] save_quantity: item={item.get('name')} mainunit_id={item.get('mainunit')} unit_from_db='{unit}' input_qty={qty}")
+        norm = _normalize_unit(unit)
+        logging.info(f"[writeoff] save_quantity: normalized unit -> '{norm}' computed will send quantity after normalization")
+        if norm == "kg":
             # Сохраняем для показа граммы (user_quantity), для iiko переводим в кг
             item["user_quantity"] = qty  # граммы
             item["quantity"] = qty / 1000  # для iiko
+        elif norm == "l":
+            # В БД единица — литр: пользователь вводит мл -> переводим в литры
+            item["user_quantity"] = qty  # миллилитры
+            item["quantity"] = qty / 1000  # литры для сервера
+        elif norm == "ml":
+            # В БД единица — миллилитр: отправляем в мл (сервер ожидает мл)
+            item["user_quantity"] = qty
+            item["quantity"] = qty
         else:
             item["user_quantity"] = qty
             item["quantity"] = qty  # всё как было

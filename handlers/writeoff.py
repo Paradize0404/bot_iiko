@@ -16,6 +16,7 @@ from iiko.iiko_auth import get_auth_token, get_base_url
 from html import escape
 import httpx
 from datetime import datetime
+import asyncio
 from keyboards.main_keyboard import cancel_process
 router = Router()
 
@@ -371,18 +372,80 @@ async def finalize_writeoff(callback: types.CallbackQuery, state: FSMContext):
 
     print("📦 Финальный JSON-документ для iiko:")
     print(document)
+    # Подтверждаем пользователю, что нажатие принято и отправка будет в фоне
+    try:
+        await callback.answer("✅ Запрос принят. Отправка в фоне...")
+    except Exception:
+        pass
 
+    # Пометим сообщение как 'отправляется' — заменим кнопку на индикатор
+    try:
+        sending_kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="⏳ Отправляется...", callback_data="w_sending")]
+        ])
+        await callback.message.edit_reply_markup(reply_markup=sending_kb)
+    except Exception as e:
+        logging.warning(f"Не удалось установить статус 'Отправляется': {e}")
+
+    # Собираем параметры для фоновой отправки
     token = await get_auth_token()
     url = f"{get_base_url()}/resto/api/v2/documents/writeoff"
-    headers = {"Content-Type": "application/json"}
     params = {"key": token}
 
-    async with httpx.AsyncClient() as client:
-        try:
+    # Снимем копию данных, чтобы можно было безопасно очистить state
+    chat_id = callback.message.chat.id
+    msg_id = callback.message.message_id
+    bot = callback.message.bot
+    document_copy = document.copy()
+
+    # Запускаем фональную задачу — отправка и обновление сообщения по результату
+    asyncio.create_task(_send_writeoff_task(bot, chat_id, msg_id, url, params, document_copy))
+
+    # Очищаем state, позволяя пользователю начинать новые действия
+    await state.clear()
+
+
+async def _send_writeoff_task(bot: Bot, chat_id: int, msg_id: int, url: str, params: dict, document: dict):
+    try:
+        async with httpx.AsyncClient() as client:
             response = await client.post(url, params=params, json=document)
             response.raise_for_status()
-            await callback.message.edit_text("✅ Акт списания успешно отправлен в iiko.")
-        except httpx.HTTPError as e:
-            text = f"❌ Ошибка: {e.response.status_code}\n{e.response.text}"
-            await callback.message.edit_text(f"<pre>{escape(text)}</pre>", parse_mode="HTML")
-    await state.clear()
+
+        # Уведомляем пользователя об успехе и меняем кнопку на 'Выполнено'
+        try:
+            await bot.send_message(chat_id, "✅ Акт списания успешно отправлен в iiko.")
+        except Exception as e:
+            logging.warning(f"Не удалось отправить сообщение об успешной отправке: {e}")
+
+        try:
+            new_kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="📌 Выполнено", callback_data="w_done_done")]
+            ])
+            await bot.edit_message_reply_markup(chat_id=chat_id, message_id=msg_id, reply_markup=new_kb)
+        except Exception as e:
+            logging.warning(f"Не удалось заменить кнопку на 'Выполнено': {e}")
+
+    except httpx.HTTPError as e:
+        # При ошибке информируем пользователя и восстанавливаем кнопку 'Готово' для повтора
+        try:
+            err_text = f"❌ Ошибка при отправке: {e.response.status_code} {e.response.text}"
+        except Exception:
+            err_text = f"❌ Ошибка при отправке: {e}"
+        try:
+            await bot.send_message(chat_id, err_text)
+        except Exception as e2:
+            logging.warning(f"Не удалось отправить сообщение об ошибке: {e2}")
+
+        try:
+            retry_kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="✅ Готово", callback_data="w_done")]
+            ])
+            await bot.edit_message_reply_markup(chat_id=chat_id, message_id=msg_id, reply_markup=retry_kb)
+        except Exception as e:
+            logging.warning(f"Не удалось восстановить кнопку 'Готово': {e}")
+
+
+@router.callback_query(F.data == "w_done_done")
+async def acknowledge_done(callback: types.CallbackQuery):
+    # Обработчик для уже выполненной операции — просто подтверждаем, что действие окончено
+    await callback.answer("Этот акт уже выполнён.")

@@ -7,7 +7,7 @@ from utils.telegram_helpers import tidy_response
 router = Router()
 
 # Список Telegram ID админов
-ADMINS = [1877127405, 1059714785, 671785195]  # замените на реальные ID
+ADMINS = [1877127405, 1059714785, 1078562089, 6446544048]  # замените на реальные ID
 
 def main_menu_keyboard(user_id: int) -> ReplyKeyboardMarkup:
     keyboard = []

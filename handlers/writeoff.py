@@ -392,7 +392,7 @@ async def finalize_writeoff(callback: types.CallbackQuery, state: FSMContext):
     date_now = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
     document = {
         "dateIncoming": date_now,
-        "status": "NEW",
+        "status": "PROCESSED",
         "comment": data["comment"],
         "storeId": data["store_id"],
         "accountId": data["payment_type_id"],

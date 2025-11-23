@@ -20,9 +20,103 @@ from db.sprav_db import sync_all_references
 from db.supplier_db import sync_suppliers
 from db.accounts_data import sync_accounts
 from services.db_queries import DBQueries
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
 logging.basicConfig(level=logging.INFO)
 
 router = Router()
+
+
+# ──────────────────────────── Команды проекта ───────────────────────────
+@router.message(F.text == "Команды")
+async def show_commands_list(message: types.Message):
+    """Показывает список всех доступных команд администратора"""
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="👥 Загрузить сотрудников", callback_data="cmd:load_staff")],
+            [InlineKeyboardButton(text="📦 Загрузить номенклатуру", callback_data="cmd:load_products")],
+            [InlineKeyboardButton(text="📁 Загрузить группы", callback_data="cmd:load_groups")],
+            [InlineKeyboardButton(text="🏪 Загрузить склады", callback_data="cmd:load_stores")],
+            [InlineKeyboardButton(text="📚 Загрузить справочники", callback_data="cmd:load_references")],
+            [InlineKeyboardButton(text="🚚 Загрузить поставщиков", callback_data="cmd:load_suppliers")],
+            [InlineKeyboardButton(text="💳 Загрузить счета", callback_data="cmd:load_accounts")],
+        ]
+    )
+    await message.answer("Выберите команду для выполнения:", reply_markup=keyboard)
+
+
+@router.callback_query(F.data == "cmd:load_staff")
+async def callback_load_staff(callback: types.CallbackQuery):
+    await callback.answer()
+    employees = await fetch_employees()
+    await callback.message.edit_text(f"✅ Загружено сотрудников: {len(employees)}")
+
+
+@router.callback_query(F.data == "cmd:load_products")
+async def callback_load_products(callback: types.CallbackQuery):
+    await callback.answer()
+    try:
+        await init_db()
+        data = await fetch_nomenclature()
+        await sync_nomenclature(data)
+        await sync_store_balances(data)
+        await callback.message.edit_text("✅ Номенклатура и балансы обновлены")
+    except Exception as e:
+        await callback.message.edit_text(f"❌ Ошибка: {str(e)}")
+
+
+@router.callback_query(F.data == "cmd:load_groups")
+async def callback_load_groups(callback: types.CallbackQuery):
+    await callback.answer()
+    try:
+        await init_groups_table()
+        data = await fetch_groups()
+        await sync_groups(data)
+        await callback.message.edit_text("✅ Группы номенклатуры обновлены")
+    except Exception as e:
+        await callback.message.edit_text(f"❌ Ошибка: {str(e)}")
+
+
+@router.callback_query(F.data == "cmd:load_stores")
+async def callback_load_stores(callback: types.CallbackQuery):
+    await callback.answer()
+    try:
+        await init_stores_table()
+        data = await fetch_stores()
+        await sync_stores(data)
+        await callback.message.edit_text("✅ Склады обновлены")
+    except Exception as e:
+        await callback.message.edit_text(f"❌ Ошибка: {str(e)}")
+
+
+@router.callback_query(F.data == "cmd:load_references")
+async def callback_load_references(callback: types.CallbackQuery):
+    await callback.answer()
+    try:
+        await sync_all_references()
+        await callback.message.edit_text("✅ Все справочники синхронизированы")
+    except Exception as e:
+        await callback.message.edit_text(f"❌ Ошибка: {str(e)}")
+
+
+@router.callback_query(F.data == "cmd:load_suppliers")
+async def callback_load_suppliers(callback: types.CallbackQuery):
+    await callback.answer()
+    try:
+        await sync_suppliers()
+        await callback.message.edit_text("✅ Поставщики успешно синхронизированы")
+    except Exception as e:
+        await callback.message.edit_text(f"❌ Ошибка: {str(e)}")
+
+
+@router.callback_query(F.data == "cmd:load_accounts")
+async def callback_load_accounts(callback: types.CallbackQuery):
+    await callback.answer()
+    try:
+        await sync_accounts()
+        await callback.message.edit_text("✅ Счета успешно загружены в таблицу accounts")
+    except Exception as e:
+        await callback.message.edit_text(f"❌ Ошибка: {str(e)}")
 
 
 # ──────────────────────────────── /start ────────────────────────────────

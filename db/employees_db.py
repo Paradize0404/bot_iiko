@@ -29,7 +29,9 @@ class Employee(Base):
     department = Column(String)
     telegram_id = Column(String, nullable=True)
 
-print("🔌 Подключение к PostgreSQL…")
+logger = logging.getLogger(__name__)
+
+logger.info("🔌 Подключение к PostgreSQL…")
 
 engine = create_async_engine(DATABASE_URL, echo=False)
 async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)

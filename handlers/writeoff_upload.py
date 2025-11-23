@@ -6,12 +6,14 @@ from aiogram.types import CallbackQuery
 from keyboards.inline_calendar import build_calendar, parse_callback_data
 from datetime import datetime
 import httpx
+import logging
 from sqlalchemy import select
 from db.employees_db import async_session
 from handlers.writeoff import Accounts
 from iiko.iiko_auth import get_auth_token, get_base_url
 from handlers.template_creation import preload_stores, STORE_CACHE
 router = Router()
+logger = logging.getLogger(__name__)
 
 
 
@@ -34,7 +36,8 @@ async def send_grouped_writeoff_report(message: Message, from_dt: datetime, to_d
             "Cookie": f"key={token}"
         }
 
-        response = httpx.get(url, params=params, headers=headers, timeout=30, verify=False)
+        async with httpx.AsyncClient(verify=False, timeout=30) as client:
+            response = await client.get(url, params=params, headers=headers)
         response.raise_for_status()
         data = response.json()
         documents = data.get("response", [])
@@ -83,7 +86,7 @@ async def send_grouped_writeoff_report(message: Message, from_dt: datetime, to_d
         await message.answer(f"<b>📉 Сводка списаний</b>\n\n{final_text}", parse_mode="HTML")
 
     except Exception as e:
-        print(f"[Ошибка] {e}")
+        logger.exception("[Ошибка] %s", e)
         await message.answer("❌ Ошибка при получении или обработке данных.")
 
 @router.message(F.text == "📉 Списания")

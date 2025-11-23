@@ -45,13 +45,14 @@ async def load_employees_from_db(session: AsyncSession):
         for emp in employees
     }
 
-def fetch_attendance_data(token: str, base_url: str, from_date: str, to_date: str):
+async def fetch_attendance_data(token: str, base_url: str, from_date: str, to_date: str):
     url = f"{base_url}/resto/api/employees/attendance/"
-    response = httpx.get(url, headers={"Cookie": f"key={token}"}, params={
-        "from": from_date,
-        "to": to_date,
-        "withPaymentDetails": "true"
-    }, verify=False)
+    async with httpx.AsyncClient(verify=False) as client:
+        response = await client.get(url, headers={"Cookie": f"key={token}"}, params={
+            "from": from_date,
+            "to": to_date,
+            "withPaymentDetails": "true"
+        })
     response.raise_for_status()
     tree = ET.fromstring(response.text)
     return tree.findall(".//attendance")
@@ -180,7 +181,7 @@ async def get_salary_report(from_date: str, to_date: str, db_session: AsyncSessi
         base_url = get_base_url()
         employee_data = await load_employees_from_db(db_session)
         employee_ids = set(employee_data.keys())
-        attendances = fetch_attendance_data(token, base_url, from_date, to_date)
+        attendances = await fetch_attendance_data(token, base_url, from_date, to_date)
         logger.info(f"✅ Загружены сотрудники: {employee_ids}")
         total_by_emp, payments_by_emp, work_days_by_emp = process_attendance(attendances, employee_ids)
 

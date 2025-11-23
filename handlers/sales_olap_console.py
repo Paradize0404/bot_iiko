@@ -21,14 +21,6 @@ class SalesReportStates(StatesGroup):
     selecting_end = State()
 
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("sales_olap_console.log", encoding="utf-8"),
-        logging.StreamHandler()
-    ]
-)
 logger = logging.getLogger(__name__)
 
 
@@ -86,8 +78,8 @@ async def get_olap_report(
         elif ct.startswith("application/xml") or ct.startswith("text/xml"):
             return parse_xml_report(r.text)
         else:
-            print("Неожиданный Content-Type:", ct)
-            print(r.text[:500])
+            logger.error("Неожиданный Content-Type: %s", ct)
+            logger.debug("Response preview: %s", r.text[:500])
             raise RuntimeError("Неизвестный формат ответа")
 
 
@@ -274,15 +266,12 @@ async def main():
     )
     if not raw:
         logger.error("Пустой ответ от iiko")
-        print("Пустой ответ от iiko")
         return
     df = pd.DataFrame(raw)
     logger.debug("Данные загружены в DataFrame")
     filtered_df = get_not_deleted(df)
-    logger.info(f"После фильтрации осталось {len(filtered_df)} строк")
-    print(get_main_report(filtered_df))
-    print("\n---\n")
-    print(get_cost_and_revenue_by_category(filtered_df))
+    logger.info("После фильтрации осталось %d строк", len(filtered_df))
+    logger.info("\n%s\n---\n%s", get_main_report(filtered_df), get_cost_and_revenue_by_category(filtered_df))
     logger.info("Скрипт завершил работу успешно.")
 
 if __name__ == "__main__":

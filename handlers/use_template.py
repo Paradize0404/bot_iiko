@@ -1,4 +1,6 @@
 import httpx
+import logging
+import pprint
 from html import escape
 from aiogram import Router, types, F
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -15,6 +17,8 @@ from iiko.iiko_auth import get_auth_token, get_base_url
 
 
 router = Router()
+
+logger = logging.getLogger(__name__)
 
 PIZZAYOLO_CONCEPTION_ID = "cd6b8810-0f57-4e1e-82a4-3f60fb2ded7a"
 Base = declarative_base()
@@ -305,7 +309,7 @@ async def handle_quantity_input(message: types.Message, state: FSMContext):
         try:
             await message.bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
         except Exception as e:
-            print(f"❌ Не удалось удалить сообщение пользователя: {e}")
+            logger.exception("❌ Не удалось удалить сообщение пользователя: %s", e)
     except ValueError:
         await message.answer("❌ Введите корректное число.")
         return
@@ -344,11 +348,11 @@ async def handle_quantity_input(message: types.Message, state: FSMContext):
             "items": items
         }
 
-        print("✅ ИТОГОВЫЙ ШАБЛОН:\n", final_data)
+        logger.info("✅ ИТОГОВЫЙ ШАБЛОН:\n%s", pprint.pformat(final_data, width=120))
 
         # Генерация XML и отправка
         xml_data = build_xml(final_data)
-        print("📦 Отправляем XML в iiko:\n", xml_data)
+        logger.debug("📦 Отправляем XML в iiko:\n%s", xml_data)
         result_msg = await send_to_iiko(xml_data)
 
         invoice_msg = ""

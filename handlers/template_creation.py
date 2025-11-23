@@ -6,6 +6,10 @@ from sqlalchemy import String, select, JSON, inspect, Column
 from sqlalchemy.orm import Mapped, mapped_column, declarative_base
 from sqlalchemy.ext.asyncio import AsyncEngine
 from db.employees_db import async_session
+import logging
+import pprint
+
+logger = logging.getLogger(__name__)
 from sqlalchemy.dialects.postgresql import insert
 from utils.telegram_helpers import edit_or_send
 from config import PARENT_FILTERS, STORE_NAME_MAP
@@ -64,9 +68,9 @@ async def ensure_preparation_table_exists(engine: AsyncEngine):
 
         if "preparation_templates" not in tables:
             await conn.run_sync(Base.metadata.create_all)
-            print("✅ Таблица preparation_templates создана")
+            logger.info("✅ Таблица preparation_templates создана")
         else:
-            print("ℹ️ Таблица preparation_templates уже существует")
+            logger.debug("ℹ️ Таблица preparation_templates уже существует")
 
 async def preload_stores():
     global STORE_CACHE
@@ -150,7 +154,7 @@ async def render_template_status(state: FSMContext, bot: Bot, chat_id: int):
     try:
         await bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text=text, parse_mode="HTML")
     except Exception as e:
-        print(f"[!] Ошибка обновления шаблона: {e}")
+        logger.exception("[!] Ошибка обновления шаблона: %s", e)
 
 # 🛠️ Начало создания шаблона
 @router.callback_query(F.data == "prep:create_template")
@@ -383,7 +387,7 @@ async def handle_set_price(message: types.Message, state: FSMContext):
         try:
             await message.bot.delete_message(chat_id=message.chat.id, message_id=price_msg_id)
         except Exception as e:
-            print(f"⚠️ Не удалось удалить сообщение с запросом цены: {e}")
+            logger.exception("⚠️ Не удалось удалить сообщение с запросом цены: %s", e)
 
     await message.delete()
 
@@ -437,5 +441,5 @@ async def finish_template(callback: types.CallbackQuery, state: FSMContext):
         )
         await session.commit()
 
-    print("✅ Шаблон сохранён в базу данных PostgreSQL:")
-    pprint.pprint(template, width=120)
+    logger.info("✅ Шаблон сохранён в базу данных PostgreSQL:")
+    logger.debug("%s", pprint.pformat(template, width=120))

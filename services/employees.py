@@ -7,7 +7,6 @@ from iiko.iiko_auth import get_auth_token, get_base_url
 import xml.etree.ElementTree as ET
 from db.employees_db import save_employees, init_db
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG)
 
 
 async def fetch_employees():
@@ -15,14 +14,16 @@ async def fetch_employees():
     base_url = get_base_url()
 
     url = f"{base_url}/resto/api/employees?key={token}"
-    
+
     try:
-        response = httpx.get(url, timeout=10.0, verify=False)
+        async with httpx.AsyncClient(verify=False, timeout=10.0) as client:
+            response = await client.get(url)
+
         if response.status_code != 200:
-            logging.error(f"❌ Ошибка при запросе: {response.status_code}")
+            logger.error("❌ Ошибка при запросе: %s", response.status_code)
             return []
 
-        logging.debug(f"📄 Ответ от API сотрудников:\n{response.text}")
+        logger.debug("📄 Ответ от API сотрудников:\n%s", response.text)
 
         root = ET.fromstring(response.text)
         employees = []
@@ -56,7 +57,7 @@ async def fetch_employees():
 
 
     except Exception as e:
-        logging.error("❌ Ошибка при получении сотрудников: %s", e)
+        logger.exception("❌ Ошибка при получении сотрудников: %s", e)
         return []
 
 

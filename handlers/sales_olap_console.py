@@ -92,6 +92,12 @@ def get_not_deleted(df):
 
 
 def get_main_report(filtered_df) -> str:
+    # ensure numeric columns are properly typed
+    filtered_df = filtered_df.copy()
+    for col in ["DishDiscountSumInt", "DishSumInt", "ProductCostBase.ProductCost"]:
+        if col in filtered_df.columns:
+            filtered_df[col] = pd.to_numeric(filtered_df[col], errors='coerce').fillna(0)
+    
     # Категории
     is_yandex = filtered_df["PayTypes.Combo"].str.strip().str.lower() == "яндекс.оплата"
     is_personal = filtered_df["DishCategory"] == "Персонал"
@@ -132,7 +138,11 @@ def get_main_report(filtered_df) -> str:
 
 
 def get_cost_and_revenue_by_category(filtered_df) -> str:
-    df = filtered_df[~filtered_df["DishCategory"].isin(["Персонал", "Модификаторы"])]
+    df = filtered_df[~filtered_df["DishCategory"].isin(["Персонал", "Модификаторы"])].copy()
+    # ensure numeric columns are properly typed (XML parser may return strings)
+    df["ProductCostBase.ProductCost"] = pd.to_numeric(df["ProductCostBase.ProductCost"], errors='coerce').fillna(0)
+    df["DishDiscountSumInt"] = pd.to_numeric(df["DishDiscountSumInt"], errors='coerce').fillna(0)
+    
     summary = (
         df.groupby("DishCategory")[["ProductCostBase.ProductCost", "DishDiscountSumInt"]]
         .sum()

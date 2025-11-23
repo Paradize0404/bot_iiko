@@ -29,10 +29,10 @@ def main_menu_keyboard(user_id: int) -> ReplyKeyboardMarkup:
 def get_document_type_keyboard():
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🧾 Акт приготовления", callback_data="doc:prep")],
+            [InlineKeyboardButton(text="📦 Расходная накладная по шаблону", callback_data="doc:prep")],
             [InlineKeyboardButton(text="📉 Акт списания", callback_data="doc:writeoff")],
             [InlineKeyboardButton(text="🔄 Внутреннее перемещение", callback_data="doc:move")],
-            [InlineKeyboardButton(text="💸 Создать расход", callback_data="doc:invoice")],  # ← ДОБАВЬ ЭТУ СТРОКУ
+            [InlineKeyboardButton(text="💸 Создать расход", callback_data="doc:invoice")],
         ]
     )
 
@@ -42,6 +42,7 @@ def get_reports_keyboard() -> ReplyKeyboardMarkup:
             [KeyboardButton(text='📈 Выручка / Себестоимость')],      # Новый отчёт
             [KeyboardButton(text='📑 Себестоимость по категориям')],  # Новый отчёт
             [KeyboardButton(text='💰 Зарплата')],
+            [KeyboardButton(text='⚙️ Настройка комиссий')],           # Настройка процентов
             [KeyboardButton(text='📉 Списания')],
             [KeyboardButton(text='🔙 Назад')]
         ],

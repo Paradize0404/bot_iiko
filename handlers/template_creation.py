@@ -33,18 +33,14 @@ class TemplateStates(StatesGroup):
     """
     Состояния FSM для пошагового создания шаблона:
     - Name: ввод названия
-    - FromStore: выбор склада-отправителя
-    - ToStore: выбор склада-получателя
-    - DispatchChoice: выбор, делать ли на отправку
-    - SelectSupplier: выбор поставщика
+    - FromStore: выбор склада
+    - SelectSupplier: выбор поставщика (ввод текста → поиск)
     - AddItems: добавление позиций
     - SetPrice: ввод цены
     """
     Name = State()            # Ввод названия шаблона
-    FromStore = State()       # Выбор склада-отправителя
-    ToStore = State()         # Выбор склада-получателя
-    DispatchChoice = State()  # Выбор: делать ли на отправку
-    SelectSupplier = State()  # Выбор поставщика
+    FromStore = State()       # Выбор склада
+    SelectSupplier = State()  # Выбор поставщика (поиск)
     AddItems = State()        # Добавление позиций
     SetPrice = State()        # Ввод цены отгрузки
 
@@ -61,17 +57,18 @@ async def render_template_status(state: FSMContext, bot: Bot, chat_id: int):
     d = await state.get_data()
     items = d.get("template_items", [])
     supplier = d.get("supplier_name", "—")
+    store = d.get("from_store_name", "—")
     items_text = (
         "\n".join(
             [
-                f"• {it['name']} — {it.get('price','—')} ₽" if d.get("dispatch") else f"• {it['name']}"
+                f"• {it['name']} — {it.get('price','—')} ₽"
                 for it in items
             ]
         )
         or "—"
     )
     text = (
-        f"📦 <b>Шаблон:</b>\nНазвание: <b>{d.get('template_name','—')}</b>\nПоставщик: <b>{supplier}</b>\n🍕 <b>Позиции:</b>\n{items_text}"
+        f"📦 <b>Шаблон:</b>\nНазвание: <b>{d.get('template_name','—')}</b>\nСклад: <b>{store}</b>\nПоставщик: <b>{supplier}</b>\n🍕 <b>Позиции:</b>\n{items_text}"
     )
     try:
         await bot.edit_message_text(
@@ -109,71 +106,62 @@ async def set_template_name(m: types.Message, state: FSMContext):
     """
     await m.delete()
     await state.update_data(template_name=m.text)
+    
+    # Получаем список складов из БД
+    from db.stores_db import Store, async_session
+    from sqlalchemy import select
+    async with async_session() as s:
+        stores = (await s.execute(select(Store.name, Store.id))).all()
+    
+    if not stores:
+        await m.answer("❌ Склады не загружены в БД")
+        return
+    
+    # Создаём клавиатуру со складами
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=name, callback_data=f"fromstore:{store_id}")] 
+        for name, store_id in stores
+    ])
+    
     await m.bot.edit_message_text(
         chat_id=m.chat.id,
         message_id=(await state.get_data())["form_message_id"],
         text="📦 С какого склада?",
-        reply_markup=_kbd(["Бар", "Кухня"], "fromstore"),
+        reply_markup=kb,
     )
+    await state.set_state(TemplateStates.FromStore)
     await render_template_status(state, m.bot, m.chat.id)
 
 
 
-## ────────────── Выбор склада-отправителя ──────────────
+## ────────────── Выбор склада ──────────────
 @router.callback_query(F.data.startswith("fromstore:"))
 async def pick_from_store(c: types.CallbackQuery, state: FSMContext):
     """
-    Обработка выбора склада-отправителя
+    Обработка выбора склада
     """
-    name = c.data.split(":", 1)[1]
-    sid = await _get_store_id(name)
-    if not sid:
+    store_id = c.data.split(":", 1)[1]
+    
+    # Получаем имя склада из БД
+    from db.stores_db import Store, async_session
+    from sqlalchemy import select
+    async with async_session() as s:
+        result = await s.execute(select(Store.name).where(Store.id == store_id))
+        store_name = result.scalar_one_or_none()
+    
+    if not store_name:
         return await c.answer("❌ Ошибка определения склада")
-    await state.update_data(from_store_id=sid, from_store_name=name)
-    await state.set_state(TemplateStates.ToStore)
-    await c.message.edit_text("🏬 На какой склад?", reply_markup=_kbd(["Бар", "Кухня"], "tostore"))
-    await render_template_status(state, c.bot, c.message.chat.id)
-
-
-
-## ────────────── Выбор склада-получателя ──────────────
-@router.callback_query(F.data.startswith("tostore:"))
-async def pick_to_store(c: types.CallbackQuery, state: FSMContext):
-    """
-    Обработка выбора склада-получателя
-    """
-    name = c.data.split(":", 1)[1]
-    sid = await _get_store_id(name)
-    if not sid:
-        return await c.answer("❌ Ошибка определения склада")
-    await state.update_data(to_store_id=sid, to_store_name=name)
-    await state.set_state(TemplateStates.DispatchChoice)
-    await c.message.edit_text(
-        "✉️ Делаем на отправку?",
-        reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton("🚚 Да", callback_data="dispatch:yes"), InlineKeyboardButton("📦 Нет", callback_data="dispatch:no")]
-            ]
-        ),
+    
+    await state.update_data(
+        from_store_id=store_id, 
+        from_store_name=store_name,
+        to_store_id=store_id,  # для совместимости с invoice XML
+        to_store_name=store_name
     )
+    await state.set_state(TemplateStates.SelectSupplier)
+    await c.message.edit_text("🧾 Для какого поставщика?\nВведите часть названия поставщика:")
     await render_template_status(state, c.bot, c.message.chat.id)
-
-
-
-## ────────────── Выбор: делать ли на отправку ──────────────
-@router.callback_query(F.data.startswith("dispatch:"))
-async def dispatch_choice(c: types.CallbackQuery, state: FSMContext):
-    """
-    Обработка выбора: делать ли на отправку
-    """
-    dispatch = c.data.split(":", 1)[1] == "yes"
-    await state.update_data(dispatch=dispatch)
-    if dispatch:
-        await state.set_state(TemplateStates.SelectSupplier)
-        await c.message.edit_text("🧾 Для кого готовим?\nВведите часть названия поставщика:")
-    else:
-        await state.set_state(TemplateStates.AddItems)
-        await c.message.edit_text("🍕 Что будем готовить?\nВведите часть названия:")
     await c.answer()
 
 
@@ -190,7 +178,7 @@ async def supplier_search(m: types.Message, state: FSMContext):
     if not res:
         return await m.answer("🚫 Поставщик не найден.")
     await state.update_data(supplier_cache={i["id"]: i for i in res})
-    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(i["name"], callback_data=f"selectsupplier:{i['id']}")] for i in res])
+    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=i["name"], callback_data=f"selectsupplier:{i['id']}")] for i in res])
     await m.bot.edit_message_text(
         chat_id=m.chat.id, message_id=(await state.get_data())["form_message_id"], text="🔍 Выберите поставщика:", reply_markup=kb
     )
@@ -228,7 +216,7 @@ async def nomen_search(m: types.Message, state: FSMContext):
     if not res:
         return await m.answer("🔍 Ничего не найдено.")
     await state.update_data(nomenclature_cache={i["id"]: i for i in res})
-    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(i["name"], callback_data=f"additem:{i['id']}")] for i in res])
+    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=i["name"], callback_data=f"additem:{i['id']}")] for i in res])
     await m.bot.edit_message_text(
         chat_id=m.chat.id, message_id=(await state.get_data())["form_message_id"], text="🔎 Найдено:\nВыберите:", reply_markup=kb
     )
@@ -249,20 +237,13 @@ async def add_item(c: types.CallbackQuery, state: FSMContext):
     tpl = data.get("template_items", [])
     tpl.append({"id": item_id, "name": item["name"], "mainunit": item["mainunit"], "quantity": None})
     await state.update_data(template_items=tpl)
-    if data.get("dispatch"):
-        await state.update_data(last_added_item_id=item_id)
-        await state.set_state(TemplateStates.SetPrice)
-        msg = await c.message.answer(f"💰 Укажите цену отгрузки для «{item['name']}»:")
-        await state.update_data(price_msg_id=msg.message_id)
-        return
-    await c.bot.edit_message_text(
-        chat_id=c.message.chat.id,
-        message_id=data.get("form_message_id"),
-        text=f"Добавлен: {item['name']}",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton("✅ Готово", callback_data="more:done")]]),
-    )
+    
+    # Всегда спрашиваем цену для расходной накладной
+    await state.update_data(last_added_item_id=item_id)
+    await state.set_state(TemplateStates.SetPrice)
+    msg = await c.message.answer(f"💰 Укажите цену отгрузки для «{item['name']}»:")
+    await state.update_data(price_msg_id=msg.message_id)
     await c.answer()
-    await render_template_status(state, c.bot, c.message.chat.id)
 
 
 
@@ -294,8 +275,8 @@ async def set_price(m: types.Message, state: FSMContext):
     await m.bot.edit_message_text(
         chat_id=m.chat.id,
         message_id=data.get("form_message_id"),
-        text="Товар добавлен с ценой.",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton("✅ Готово", callback_data="more:done")]]),
+        text=f"✅ Товар добавлен с ценой.\n\n🍕 Введите название следующей позиции или нажмите 'Готово':",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="✅ Готово", callback_data="more:done")]]),
     )
     await render_template_status(state, m.bot, m.chat.id)
 
@@ -311,8 +292,14 @@ async def finish_template(c: types.CallbackQuery, state: FSMContext):
     Сохраняет шаблон в базу данных, завершает процесс
     """
     data = await state.get_data()
-    template = {k: data.get(k) for k in ("template_name", "from_store_id", "to_store_id", "supplier_id", "supplier_name")}
-    template["items"] = data.get("template_items", [])
+    template = {
+        "name": data.get("template_name"),
+        "from_store_id": data.get("from_store_id"),
+        "to_store_id": data.get("to_store_id"),
+        "supplier_id": data.get("supplier_id"),
+        "supplier_name": data.get("supplier_name"),
+        "items": data.get("template_items", [])
+    }
     await c.bot.edit_message_text(chat_id=c.message.chat.id, message_id=data.get("form_message_id"), text="📦 Шаблон сохранён ✅")
     await c.answer("Готово!")
     from db.employees_db import engine

@@ -47,20 +47,20 @@ async def handle_invoice(callback: types.CallbackQuery, state: FSMContext):
 
 
 
-## ────────────── Выбор действия для акта приготовления ──────────────
+## ────────────── Выбор действия для расходной накладной по шаблону ──────────────
 @router.callback_query(F.data == "doc:prep")
-async def forward_to_prep(callback: types.CallbackQuery, state: FSMContext):
+async def forward_to_invoice_template(callback: types.CallbackQuery, state: FSMContext):
     """
-    Показывает меню выбора действия для акта приготовления (шаблон/создание)
+    Показывает меню выбора действия для расходной накладной по шаблону
     """
     user_id = callback.from_user.id
 
     if user_id in ADMIN_IDS:
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🧾 По шаблону", callback_data="prep:by_template")],
+            [InlineKeyboardButton(text="📋 По шаблону", callback_data="prep:by_template")],
             [InlineKeyboardButton(text="🛠 Создать шаблон", callback_data="prep:create_template")]
         ])
-        await callback.message.edit_text("Выберите действие для акта приготовления:", reply_markup=keyboard)
+        await callback.message.edit_text("Выберите действие для расходной накладной:", reply_markup=keyboard)
         await callback.answer()
     else:
         # Для обычных пользователей сразу показываем список шаблонов

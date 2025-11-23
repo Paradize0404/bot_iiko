@@ -74,7 +74,7 @@ async def preload_stores() -> None:
 
 ## ────────────── Быстрое создание клавиатуры складов ──────────────
 def get_store_keyboard(variants: List[str], prefix: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(n, callback_data=f"{prefix}:{n}")] for n in variants])
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=n, callback_data=f"{prefix}:{n}")] for n in variants])
 
 
 def _get_store_kb(variants: List[str], prefix: str) -> InlineKeyboardMarkup:
@@ -134,22 +134,13 @@ async def get_template(name: str):
         return r.scalar_one_or_none()
 
 
-## ────────────── Формирование XML для акта приготовления ──────────────
-def build_production_xml(template: dict) -> str:
-    from datetime import datetime
-    now = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-    num = "tg-" + datetime.now().strftime("%Y%m%d%H%M%S")
-    items = "".join([f"\n        <item>\n            <num>{i+1}</num>\n            <product>{it['id']}</product>\n            <amount>{it['quantity']}</amount>\n            <amountUnit>{it['mainunit']}</amountUnit>\n        </item>" for i, it in enumerate(template['items'])])
-    return f"""<?xml version='1.0' encoding='UTF-8'?>\n<document>\n    <storeFrom>{template['from_store_id']}</storeFrom>\n    <storeTo>{template['to_store_id']}</storeTo>\n    <dateIncoming>{now}</dateIncoming>\n    <documentNumber>{num}</documentNumber>\n    <conception>{os.getenv('PIZZAYOLO_CONCEPTION_ID','cd6b8810-0f57-4e1e-82a4-3f60fb2ded7a')}</conception>\n    <comment>Создано через Telegram-бота</comment>\n    <items>{items}\n    </items>\n</document>"""
-
-
 ## ────────────── Формирование XML для расходной накладной ──────────────
 def build_invoice_xml(template: dict) -> str:
     from datetime import datetime
     now = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
     num = "tg-inv-" + datetime.now().strftime("%Y%m%d%H%M%S")
     items = "".join([f"\n        <item>\n            <productId>{it['id']}</productId>\n            <storeId>{template['to_store_id']}</storeId>\n            <price>{float(it['price']):.2f}</price>\n            <amount>{float(it['quantity']):.2f}</amount>\n            <sum>{round(float(it['price'])*float(it['quantity']),2):.2f}</sum>\n        </item>" for it in template['items']])
-    return f"""<?xml version='1.0' encoding='UTF-8'?>\n<document>\n    <documentNumber>{num}</documentNumber>\n    <dateIncoming>{now}</dateIncoming>\n    <useDefaultDocumentTime>true</useDefaultDocumentTime>\n    <revenueAccountCode>4.08</revenueAccountCode>\n    <counteragentId>{template['supplier_id']}</counteragentId>\n    <defaultStoreId>{template['to_store_id']}</defaultStoreId>\n    <conceptionId>{os.getenv('PIZZAYOLO_CONCEPTION_ID','cd6b8810-0f57-4e1e-82a4-3f60fb2ded7a')}</conceptionId>\n    <comment>Создано автоматически на основе акта приготовления</comment>\n    <items>{items}\n    </items>\n</document>"""
+    return f"""<?xml version='1.0' encoding='UTF-8'?>\n<document>\n    <documentNumber>{num}</documentNumber>\n    <dateIncoming>{now}</dateIncoming>\n    <status>PROCESSED</status>\n    <useDefaultDocumentTime>true</useDefaultDocumentTime>\n    <revenueAccountCode>4.08</revenueAccountCode>\n    <counteragentId>{template['supplier_id']}</counteragentId>\n    <defaultStoreId>{template['to_store_id']}</defaultStoreId>\n    <conceptionId>{os.getenv('PIZZAYOLO_CONCEPTION_ID','cd6b8810-0f57-4e1e-82a4-3f60fb2ded7a')}</conceptionId>\n    <comment>Создано автоматически через Telegram-бота</comment>\n    <items>{items}\n    </items>\n</document>"""
 
 
 ## ────────────── Отправка XML в iiko ──────────────
@@ -195,4 +186,4 @@ async def get_unit_name_by_id(unit_id: str) -> str:
 
 ## ────────────── Клавиатура выбора шаблона ──────────────
 def get_template_keyboard(templates: List[str]) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(t, callback_data=f"use_template:{t}")] for t in templates])
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=t, callback_data=f"use_template:{t}")] for t in templates])

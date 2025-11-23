@@ -6,8 +6,7 @@ from aiogram.fsm.context import FSMContext
 from datetime import datetime
 from keyboards.inline_calendar import build_calendar, parse_callback_data
 from states import SalaryStates
-from services.salary_report import get_salary_report
-from db.employees_db import async_session
+from services.salary_from_iiko import get_salary_report_from_iiko
 import logging
 
 ## ────────────── Логгер и роутер для aiogram ──────────────
@@ -102,7 +101,6 @@ async def handle_salary_end_calendar(callback: CallbackQuery, state: FSMContext)
             selected_date
         ])
         await callback.message.edit_text("⏳ Формирую отчёт...")
-        async with async_session() as session:
-            text = await get_salary_report(from_dt.isoformat(), to_dt.isoformat(), session)
+        text = await get_salary_report_from_iiko(from_dt.isoformat(), to_dt.isoformat())
         await callback.message.answer(text)
         await state.clear()

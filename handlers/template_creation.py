@@ -2,444 +2,237 @@ from aiogram import Bot, Router, F, types
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from sqlalchemy import String, select, JSON, inspect, Column
-from sqlalchemy.orm import Mapped, mapped_column, declarative_base
-from sqlalchemy.ext.asyncio import AsyncEngine
-from db.employees_db import async_session
-import logging
-import pprint
-
-logger = logging.getLogger(__name__)
 from sqlalchemy.dialects.postgresql import insert
 from utils.telegram_helpers import edit_or_send
 from config import PARENT_FILTERS, STORE_NAME_MAP
 from services.db_queries import DBQueries
+from handlers.common import (
+    PreparationTemplate,
+    ensure_preparation_table_exists,
+    preload_stores,
+    _kbd,
+    _get_store_id,
+    search_nomenclature,
+    search_suppliers,
+    STORE_CACHE,
+)
+from db.employees_db import async_session
+import logging, pprint
 
+logger = logging.getLogger(__name__)
 router = Router()
 
-Base = declarative_base()
 
-STORE_CACHE = {}
-
-class PreparationTemplate(Base):
-    __tablename__ = "preparation_templates"
-
-    name: Mapped[str] = mapped_column(String, primary_key=True)
-    from_store_id: Mapped[str] = mapped_column(String)
-    to_store_id: Mapped[str] = mapped_column(String)
-    supplier_id: Mapped[str] = mapped_column(String, nullable=True)
-    supplier_name: Mapped[str] = mapped_column(String, nullable=True)
-    items: Mapped[dict] = mapped_column(JSON)
-
-
-
-class Store(Base):
-    __tablename__ = "stores"
-
-    id = Column(String, primary_key=True)
-    name = Column(String)
-    code = Column(String)
-    type = Column(String)
-
-class Nomenclature(Base):
-    __tablename__ = "nomenclature"
-
-    id = Column(String, primary_key=True)
-    name = Column(String)
-    parent = Column(String)
-    mainunit = Column("mainunit", String)
-    type = Column(String)
-
-
-class Supplier(Base):
-    __tablename__ = "suppliers"
-    id = Column(String, primary_key=True)
-    code = Column(String)
-    name = Column(String)
-
-
-async def ensure_preparation_table_exists(engine: AsyncEngine):
-    async with engine.begin() as conn:
-        def check_tables(sync_conn):
-            inspector = inspect(sync_conn)
-            return inspector.get_table_names()
-
-        tables = await conn.run_sync(check_tables)
-
-        if "preparation_templates" not in tables:
-            await conn.run_sync(Base.metadata.create_all)
-            logger.info("✅ Таблица preparation_templates создана")
-        else:
-            logger.debug("ℹ️ Таблица preparation_templates уже существует")
-
-async def preload_stores():
-    global STORE_CACHE
-    async with async_session() as session:
-        result = await session.execute(select(Store.name, Store.id))
-        for name, store_id in result.all():
-            STORE_CACHE[name.strip()] = store_id
-
-
-def get_store_keyboard(variants: list[str], prefix: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=name, callback_data=f"{prefix}:{name}")]
-        for name in variants
-    ])
-
-
-
-async def get_store_id_by_name(user_input_name: str) -> str | None:
-    valid_names = STORE_NAME_MAP.get(user_input_name.strip())
-    if not valid_names:
-        return None
-
-    for db_name in valid_names:
-        if db_name.strip() in STORE_CACHE:
-            return STORE_CACHE[db_name.strip()]
-    return None
-
-
-async def search_nomenclature(partial_name: str) -> list[dict]:
-    """Search nomenclature - delegates to unified service."""
-    return await DBQueries.search_nomenclature(
-        partial_name,
-        parents=PARENT_FILTERS
-    )
-
-
-async def search_suppliers(partial_name: str) -> list[dict]:
-    """Search suppliers - delegates to unified service."""
-    return await DBQueries.search_suppliers(partial_name)
-
-
-
-# 🔄 Состояния FSM
 class TemplateStates(StatesGroup):
     Name = State()
     FromStore = State()
     ToStore = State()
-    DispatchChoice = State()  
+    DispatchChoice = State()
     SelectSupplier = State()
     AddItems = State()
-    SetPrice = State() 
-
+    SetPrice = State()
 
 
 async def render_template_status(state: FSMContext, bot: Bot, chat_id: int):
-    data = await state.get_data()
-    msg_id = data.get("status_message_id")
-
-    name = data.get("template_name", "—")
-    from_store = data.get("from_store_name", "—")
-    to_store = data.get("to_store_name", "—")
-    supplier = data.get("supplier_name", "—")  # ✅ Вот эта строка — добавь
-    dispatch_flag = "Да" if data.get("dispatch") else "Нет"
-    items = data.get("template_items", [])
-
-    items_text = "\n".join([
-        f"• {i['name']} — {i.get('price', '—')} ₽" if data.get("dispatch") else f"• {i['name']}"
-        for i in items
-    ]) or "—"
-
-    text = (
-        f"📦 <b>Шаблон:</b>\n"
-        f"Название: <b>{name}</b>\n"
-        f"Склад ➡️: <code>{from_store}</code>\n"
-        f"Склад ⬅️: <code>{to_store}</code>\n"
-        f"Отправка: <b>{dispatch_flag}</b>\\n"
-        f"Поставщик: <b>{supplier}</b>\n"
-        f"🍕 <b>Позиции:</b>\n{items_text}"
+    d = await state.get_data()
+    items = d.get("template_items", [])
+    supplier = d.get("supplier_name", "—")
+    items_text = (
+        "\n".join(
+            [
+                f"• {it['name']} — {it.get('price','—')} ₽" if d.get("dispatch") else f"• {it['name']}"
+                for it in items
+            ]
+        )
+        or "—"
     )
-
+    text = (
+        f"📦 <b>Шаблон:</b>\nНазвание: <b>{d.get('template_name','—')}</b>\nПоставщик: <b>{supplier}</b>\n🍕 <b>Позиции:</b>\n{items_text}"
+    )
     try:
-        await bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text=text, parse_mode="HTML")
-    except Exception as e:
-        logger.exception("[!] Ошибка обновления шаблона: %s", e)
+        await bot.edit_message_text(
+            chat_id=chat_id, message_id=d.get("status_message_id"), text=text, parse_mode="HTML"
+        )
+    except Exception:
+        logger.exception("Ошибка обновления статуса шаблона")
 
-# 🛠️ Начало создания шаблона
+
 @router.callback_query(F.data == "prep:create_template")
-async def start_template_creation(callback: types.CallbackQuery, state: FSMContext):
+async def start_template_creation(c: types.CallbackQuery, state: FSMContext):
     await state.clear()
     await state.update_data(template_items=[])
-
-    # отправляем новое сообщение и сохраняем его id
-    
-
     await state.set_state(TemplateStates.Name)
+    await c.message.delete()
+    status = await c.message.answer("📦 Шаблон\n(заполняется...)")
+    msg = await c.message.answer("🛠 Введите название шаблона:")
+    await state.update_data(form_message_id=msg.message_id, status_message_id=status.message_id)
 
-    # удаляем предыдущее сообщение с кнопкой
-    await callback.message.delete()
-    status = await callback.message.answer("📦 Шаблон\n(заполняется...)")
-    msg = await callback.message.answer("🛠 Введите название шаблона:")
-    await state.update_data(
-        form_message_id=msg.message_id,
-        status_message_id=status.message_id,
-        template_items=[]
-    )
 
-# 1️⃣ Название шаблона
 @router.message(TemplateStates.Name)
-async def get_template_name(message: types.Message, state: FSMContext):
-    await message.delete()  # 🧼 Удаляем сообщение с введённым названием
-
-    await state.update_data(template_name=message.text)
-    msg_id = (await state.get_data())['form_message_id']
-
-    keyboard = get_store_keyboard(["Бар", "Кухня"], prefix="fromstore")
-    await message.bot.edit_message_text(
-        chat_id=message.chat.id,
-        message_id=msg_id,
+async def set_template_name(m: types.Message, state: FSMContext):
+    await m.delete()
+    await state.update_data(template_name=m.text)
+    await m.bot.edit_message_text(
+        chat_id=m.chat.id,
+        message_id=(await state.get_data())["form_message_id"],
         text="📦 С какого склада?",
-        reply_markup=keyboard
+        reply_markup=_kbd(["Бар", "Кухня"], "fromstore"),
     )
-    await render_template_status(state, message.bot, message.chat.id)
+    await render_template_status(state, m.bot, m.chat.id)
 
 
 @router.callback_query(F.data.startswith("fromstore:"))
-async def handle_from_store_choice(callback: types.CallbackQuery, state: FSMContext):
-    store_name = callback.data.split(":")[1]
-    store_id = await get_store_id_by_name(store_name)
-    if not store_id:
-        return await callback.answer("❌ Ошибка определения склада")
-
-    # 👇 Сохраняем и id, и понятное название
-    await state.update_data(
-        from_store_id=store_id,
-        from_store_name=store_name
-    )
-
-    keyboard = get_store_keyboard(["Бар", "Кухня"], prefix="tostore")
+async def pick_from_store(c: types.CallbackQuery, state: FSMContext):
+    name = c.data.split(":", 1)[1]
+    sid = await _get_store_id(name)
+    if not sid:
+        return await c.answer("❌ Ошибка определения склада")
+    await state.update_data(from_store_id=sid, from_store_name=name)
     await state.set_state(TemplateStates.ToStore)
-    await callback.message.edit_text("🏬 На какой склад?", reply_markup=keyboard)
-
-    await render_template_status(state, callback.bot, callback.message.chat.id)
+    await c.message.edit_text("🏬 На какой склад?", reply_markup=_kbd(["Бар", "Кухня"], "tostore"))
+    await render_template_status(state, c.bot, c.message.chat.id)
 
 
 @router.callback_query(F.data.startswith("tostore:"))
-async def handle_to_store_choice(callback: types.CallbackQuery, state: FSMContext):
-    store_name = callback.data.split(":")[1]
-    store_id = await get_store_id_by_name(store_name)
-    if not store_id:
-        return await callback.answer("❌ Ошибка определения склада")
-
-
-    await state.update_data(
-        to_store_id=store_id,
-        to_store_name=store_name,
-    )
-    
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[[
-            InlineKeyboardButton(text="🚚 Да",  callback_data="dispatch:yes"),
-            InlineKeyboardButton(text="📦 Нет", callback_data="dispatch:no"),
-        ]]
-    )
+async def pick_to_store(c: types.CallbackQuery, state: FSMContext):
+    name = c.data.split(":", 1)[1]
+    sid = await _get_store_id(name)
+    if not sid:
+        return await c.answer("❌ Ошибка определения склада")
+    await state.update_data(to_store_id=sid, to_store_name=name)
     await state.set_state(TemplateStates.DispatchChoice)
-    await callback.message.edit_text("✉️ Делаем на отправку?", reply_markup=keyboard)
-
-    await render_template_status(state, callback.bot, callback.message.chat.id)
+    await c.message.edit_text(
+        "✉️ Делаем на отправку?",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("🚚 Да", callback_data="dispatch:yes"), InlineKeyboardButton("📦 Нет", callback_data="dispatch:no")]
+            ]
+        ),
+    )
+    await render_template_status(state, c.bot, c.message.chat.id)
 
 
 @router.callback_query(F.data.startswith("dispatch:"))
-async def handle_dispatch_choice(callback: types.CallbackQuery, state: FSMContext):
-    dispatch = callback.data.split(":")[1] == "yes"
+async def dispatch_choice(c: types.CallbackQuery, state: FSMContext):
+    dispatch = c.data.split(":", 1)[1] == "yes"
     await state.update_data(dispatch=dispatch)
-
-    if dispatch:                       # делаем отправку → выбираем поставщика
+    if dispatch:
         await state.set_state(TemplateStates.SelectSupplier)
-        await callback.message.edit_text(
-            "🧾 Для кого готовим?\nВведите часть названия поставщика:"
-        )
-    else:                              # обычный шаблон → сразу к товарам
+        await c.message.edit_text("🧾 Для кого готовим?\nВведите часть названия поставщика:")
+    else:
         await state.set_state(TemplateStates.AddItems)
-        await callback.message.edit_text(
-            "🍕 Что будем готовить?\nВведите часть названия:"
-        )
-    await callback.answer()
+        await c.message.edit_text("🍕 Что будем готовить?\nВведите часть названия:")
+    await c.answer()
+
 
 @router.message(TemplateStates.SelectSupplier)
-async def handle_supplier_search(message: types.Message, state: FSMContext):
-    query = message.text.strip()
-    await message.delete()
-
-    results = await search_suppliers(query)
-    if not results:
-        return await message.answer("🚫 Поставщик не найден. Попробуйте другое название.")
-
-    await state.update_data(supplier_cache={item['id']: item for item in results})
-
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=item['name'], callback_data=f"selectsupplier:{item['id']}")]
-        for item in results
-    ])
-
-    msg_id = (await state.get_data())['form_message_id']
-    await message.bot.edit_message_text(
-        chat_id=message.chat.id,
-        message_id=msg_id,
-        text="🔍 Выберите поставщика:",
-        reply_markup=keyboard
+async def supplier_search(m: types.Message, state: FSMContext):
+    q = m.text.strip()
+    await m.delete()
+    res = await search_suppliers(q)
+    if not res:
+        return await m.answer("🚫 Поставщик не найден.")
+    await state.update_data(supplier_cache={i["id"]: i for i in res})
+    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(i["name"], callback_data=f"selectsupplier:{i['id']}")] for i in res])
+    await m.bot.edit_message_text(
+        chat_id=m.chat.id, message_id=(await state.get_data())["form_message_id"], text="🔍 Выберите поставщика:", reply_markup=kb
     )
+
 
 @router.callback_query(F.data.startswith("selectsupplier:"))
-async def handle_supplier_select(callback: types.CallbackQuery, state: FSMContext):
-    supplier_id = callback.data.split(":")[1]
+async def select_supplier(c: types.CallbackQuery, state: FSMContext):
+    sid = c.data.split(":", 1)[1]
     data = await state.get_data()
-    supplier = data.get("supplier_cache", {}).get(supplier_id)
-
-    if not supplier:
-        return await callback.answer("❌ Ошибка выбора поставщика")
-
-    await state.update_data(
-        supplier_id=supplier["id"],
-        supplier_name=supplier["name"]
-    )
-
+    sup = data.get("supplier_cache", {}).get(sid)
+    if not sup:
+        return await c.answer("❌ Ошибка выбора поставщика")
+    await state.update_data(supplier_id=sup["id"], supplier_name=sup["name"])
     await state.set_state(TemplateStates.AddItems)
-    await callback.message.edit_text("🍕 Что будем готовить?\nВведите часть названия:")
-    await callback.answer()
+    await c.message.edit_text("🍕 Что будем готовить?\nВведите часть названия:")
+    await c.answer()
+    await render_template_status(state, c.bot, c.message.chat.id)
 
-    await render_template_status(state, callback.bot, callback.message.chat.id)
 
-
-# 4️⃣ Что будем готовить (поиск)
 @router.message(TemplateStates.AddItems)
-async def handle_nomenclature_search(message: types.Message, state: FSMContext):
-    query = message.text.strip()
-    await message.delete()  # удаляем сообщение пользователя
-
-    results = await search_nomenclature(query)
-    if not results:
-        return await message.answer("🔍 Ничего не найдено. Попробуйте другую часть названия.")
-
-    await state.update_data(nomenclature_cache={item['id']: item for item in results})
-
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=item['name'], callback_data=f"additem:{item['id']}")]
-        for item in results
-    ])  # 👈 добавляем готово
-
-    msg_id = (await state.get_data())['form_message_id']
-    await message.bot.edit_message_text(
-        chat_id=message.chat.id,
-        message_id=msg_id,
-        text="🔎 Найдено:\nВыберите из списка:",
-        reply_markup=keyboard
+async def nomen_search(m: types.Message, state: FSMContext):
+    q = m.text.strip()
+    await m.delete()
+    res = await search_nomenclature(q)
+    if not res:
+        return await m.answer("🔍 Ничего не найдено.")
+    await state.update_data(nomenclature_cache={i["id"]: i for i in res})
+    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(i["name"], callback_data=f"additem:{i['id']}")] for i in res])
+    await m.bot.edit_message_text(
+        chat_id=m.chat.id, message_id=(await state.get_data())["form_message_id"], text="🔎 Найдено:\nВыберите:", reply_markup=kb
     )
 
-# ➕ Добавление товара
+
 @router.callback_query(F.data.startswith("additem:"))
-async def add_item(callback: types.CallbackQuery, state: FSMContext):
-    item_id = callback.data.split(":")[1]
+async def add_item(c: types.CallbackQuery, state: FSMContext):
+    item_id = c.data.split(":", 1)[1]
     data = await state.get_data()
     item = data.get("nomenclature_cache", {}).get(item_id)
-
     if not item:
-        return await callback.answer("❌ Ошибка: товар не найден")
-
-    data['template_items'].append({
-        'id': item_id,
-        'name': item['name'],
-        'mainunit': item['mainunit'],
-        'quantity': None
-    })
-    await state.update_data(template_items=data['template_items'])
-
+        return await c.answer("❌ Товар не найден")
+    tpl = data.get("template_items", [])
+    tpl.append({"id": item_id, "name": item["name"], "mainunit": item["mainunit"], "quantity": None})
+    await state.update_data(template_items=tpl)
     if data.get("dispatch"):
         await state.update_data(last_added_item_id=item_id)
         await state.set_state(TemplateStates.SetPrice)
-        msg = await callback.message.answer(f"💰 Укажите цену отгрузки для «{item['name']}»:")
+        msg = await c.message.answer(f"💰 Укажите цену отгрузки для «{item['name']}»:")
         await state.update_data(price_msg_id=msg.message_id)
         return
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        
-        [InlineKeyboardButton(text="✅ Готово", callback_data="more:done")]
-    ])
-    msg_id = data.get("form_message_id")
-    await callback.bot.edit_message_text(
-        chat_id=callback.message.chat.id,
-        message_id=msg_id,
-        text=f"Добавлен: {item['name']}\nМожешь ввести ещё или нажми «Готово».",
-        reply_markup=kb
+    await c.bot.edit_message_text(
+        chat_id=c.message.chat.id,
+        message_id=data.get("form_message_id"),
+        text=f"Добавлен: {item['name']}",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton("✅ Готово", callback_data="more:done")]]),
     )
-    await callback.answer()
-    await render_template_status(state, callback.bot, callback.message.chat.id)
+    await c.answer()
+    await render_template_status(state, c.bot, c.message.chat.id)
+
 
 @router.message(TemplateStates.SetPrice)
-async def handle_set_price(message: types.Message, state: FSMContext):
+async def set_price(m: types.Message, state: FSMContext):
     try:
-        price = float(message.text.replace(",", "."))
+        price = float(m.text.replace(",", "."))
     except ValueError:
-        return await message.answer("❌ Введите корректную цену (например, 199.99)")
-
+        return await m.answer("❌ Введите корректную цену")
     data = await state.get_data()
     items = data.get("template_items", [])
-    item_id = data.get("last_added_item_id")
-
-    for item in items:
-        if item["id"] == item_id:
-            item["price"] = price  # 👈 сохраняем цену
+    iid = data.get("last_added_item_id")
+    for it in items:
+        if it["id"] == iid:
+            it["price"] = price
             break
-
     await state.update_data(template_items=items)
-    price_msg_id = data.get("price_msg_id")
-    if price_msg_id:
-        try:
-            await message.bot.delete_message(chat_id=message.chat.id, message_id=price_msg_id)
-        except Exception as e:
-            logger.exception("⚠️ Не удалось удалить сообщение с запросом цены: %s", e)
-
-    await message.delete()
-
-    # Возврат в AddItems
+    await m.delete()
     await state.set_state(TemplateStates.AddItems)
-
-    msg_id = data.get("form_message_id")
-    await message.bot.edit_message_text(
-        chat_id=message.chat.id,
-        message_id=msg_id,
-        text="Товар добавлен с ценой. Можешь ввести ещё или нажать «Готово».",
-        reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text="✅ Готово", callback_data="more:done")]]
-        )
+    if (pid := data.get("price_msg_id")):
+        try:
+            await m.bot.delete_message(chat_id=m.chat.id, message_id=pid)
+        except Exception:
+            logger.exception("remove price msg")
+    await m.bot.edit_message_text(
+        chat_id=m.chat.id,
+        message_id=data.get("form_message_id"),
+        text="Товар добавлен с ценой.",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton("✅ Готово", callback_data="more:done")]]),
     )
-
-    await render_template_status(state, message.bot, message.chat.id)
-
-
+    await render_template_status(state, m.bot, m.chat.id)
 
 
 @router.callback_query(F.data == "more:done")
-async def finish_template(callback: types.CallbackQuery, state: FSMContext):
+async def finish_template(c: types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
-
-    template = {
-        "name": data.get("template_name"),
-        "from_store_id": data.get("from_store_id"),
-        "to_store_id": data.get("to_store_id"),
-        "supplier_id": data.get("supplier_id"),
-        "supplier_name": data.get("supplier_name"),
-        "items": data.get("template_items", []),
-    }
-
-    # Отображаем пользователю, что шаблон сохранён
-    msg_id = data.get("form_message_id")
-    await callback.bot.edit_message_text(
-        chat_id=callback.message.chat.id,
-        message_id=msg_id,
-        text="📦 Шаблон сохранён ✅\n(в консоли подробности)"
-    )
-    await callback.answer("Готово!")
-
-    # Сохраняем в базу
+    template = {k: data.get(k) for k in ("template_name", "from_store_id", "to_store_id", "supplier_id", "supplier_name")}
+    template["items"] = data.get("template_items", [])
+    await c.bot.edit_message_text(chat_id=c.message.chat.id, message_id=data.get("form_message_id"), text="📦 Шаблон сохранён ✅")
+    await c.answer("Готово!")
     from db.employees_db import engine
     await ensure_preparation_table_exists(engine)
-
-    async with async_session() as session:
-        await session.execute(
-            insert(PreparationTemplate).values(**template).on_conflict_do_nothing()
-        )
-        await session.commit()
-
-    logger.info("✅ Шаблон сохранён в базу данных PostgreSQL:")
-    logger.debug("%s", pprint.pformat(template, width=120))
+    async with async_session() as s:
+        await s.execute(insert(PreparationTemplate).values(**template).on_conflict_do_nothing())
+        await s.commit()
+    logger.info("✅ Шаблон сохранён: %s", pprint.pformat(template, width=120))

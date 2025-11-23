@@ -11,8 +11,7 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from sqlalchemy import select
 from handlers.base_document import BaseDocumentHandler, _normalize_unit
-from handlers.template_creation import STORE_CACHE, preload_stores, get_store_id_by_name
-from handlers.use_template import get_unit_name_by_id
+from handlers.common import STORE_CACHE, preload_stores, get_store_id_by_name, get_unit_name_by_id
 from iiko.iiko_auth import get_auth_token, get_base_url
 import httpx
 from datetime import datetime

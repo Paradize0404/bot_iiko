@@ -2,8 +2,7 @@ from aiogram import Router, F, types
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from keyboards.main_keyboard import get_document_type_keyboard
-from handlers.use_template import get_template_keyboard
-from handlers.use_template import handle_prep_choice
+from handlers.common import get_template_keyboard
 from handlers.writeoff import start_writeoff 
 from handlers.invoice import start_invoice
 from config import ADMIN_IDS

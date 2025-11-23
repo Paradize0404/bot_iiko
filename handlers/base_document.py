@@ -10,7 +10,7 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from sqlalchemy import select
 from db.employees_db import async_session, Employee
-from handlers.use_template import get_unit_name_by_id
+from handlers.common import get_unit_name_by_id
 from services.db_queries import DBQueries
 from config import DOC_CONFIG
 import logging

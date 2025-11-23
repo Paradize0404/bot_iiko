@@ -17,6 +17,10 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 
 MODE = os.getenv("MODE", "dev")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+DRY_RUN = os.getenv("DRY_RUN", "false").lower() in ("1", "true", "yes")
+
+startup_complete = False
 
 app = FastAPI()
 
@@ -37,15 +41,44 @@ async def on_startup():
         await dp.start_polling(bot)
     else:
         logging.info("🚀 prod mode: устанавливаем webhook")
-        await bot.set_webhook("https://botiiko-production.up.railway.app/webhook")
+        webhook_url = WEBHOOK_URL or "https://botiiko-production.up.railway.app/webhook"
+        if DRY_RUN:
+            logging.info("DRY_RUN=true — пропускаем установку webhook; логируем URL: %s", webhook_url)
+        else:
+            if not webhook_url:
+                logging.error("WEBHOOK_URL не задан — пропускаем установку webhook")
+            else:
+                await bot.set_webhook(webhook_url)
+
+    # mark startup complete for readiness checks
+    global startup_complete
+    startup_complete = True
 
 @app.post("/webhook")
 async def handle_webhook(request: Request):
     logging.info("📥 Webhook получил обновление")
     data = await request.json()
     update = Update.model_validate(data)
+    # ensure we have a Bot instance (startup should have created it)
+    bot = config.bot
+    if bot is None:
+        # fallback: try to create a bot instance on demand
+        try:
+            bot = config.get_bot()
+            config.bot = bot
+        except Exception as e:
+            logging.exception("Не удалось создать Bot для обработки webhook: %s", e)
+            return {"ok": False, "error": str(e)}
+
     await dp.feed_update(bot, update)
     return {"ok": True}
+
+
+@app.get("/health")
+async def health():
+    if startup_complete:
+        return {"ok": True, "ready": True}
+    return {"ok": False, "ready": False}
 
 if __name__ == "__main__":
     if MODE == "dev":

@@ -4,7 +4,7 @@ import asyncio
 import logging
 from dotenv import load_dotenv
 
-from config import bot  # ← теперь используем bot из config
+import config
 from bot import dp      # ← используем dp из bot.py
 
 from aiogram.methods import DeleteWebhook
@@ -25,8 +25,14 @@ async def on_startup():
     
     await init_pool()
     await preload_stores()
+    # ensure Bot instance exists at runtime
+    if config.bot is None:
+        config.bot = config.get_bot()
+    bot = config.bot
+
     if MODE == "dev":
         logging.info("🧪 dev mode: удаляем webhook и запускаем polling")
+        # delete webhook and start polling locally
         await bot(DeleteWebhook(drop_pending_updates=True))
         await dp.start_polling(bot)
     else:

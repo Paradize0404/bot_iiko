@@ -4,15 +4,14 @@ from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from utils.telegram_helpers import tidy_response
-router = Router()
+from config import ADMIN_IDS
 
-# Список Telegram ID админов
-ADMINS = [1877127405, 1059714785, 1078562089, 6446544048]  # замените на реальные ID
+router = Router()
 
 def main_menu_keyboard(user_id: int) -> ReplyKeyboardMarkup:
     keyboard = []
 
-    if user_id in ADMINS:
+    if user_id in ADMIN_IDS:
         keyboard.append([KeyboardButton(text="📊 Отчёты")])
         keyboard.append([KeyboardButton(text="Команды")])
 

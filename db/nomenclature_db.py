@@ -1,6 +1,7 @@
 # nomenclature_db.py
 import os, httpx, asyncio
 from dotenv import load_dotenv
+import logging
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, Mapped, mapped_column, declarative_base
 from sqlalchemy import String, Float, select, func, text, ForeignKey
@@ -15,6 +16,8 @@ if not DATABASE_URL:
 engine        = create_async_engine(DATABASE_URL, echo=False)
 async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 Base = declarative_base()
+
+logger = logging.getLogger(__name__)
 
 # ─────────── ORM-модели ───────────
 class Nomenclature(Base):
@@ -71,7 +74,7 @@ async def init_db() -> None:
         await conn.execute(text(CREATE_SQL))
         await conn.execute(text(ALTER_SQL))
         await conn.execute(text(CREATE_BALANCE_SQL))    # ⬅️ NEW
-    print("✅ Таблицы nomenclature и balances готовы.")
+    logger.info("✅ Таблицы nomenclature и balances готовы.")
 
 # ──────────────────────────────────
 # 2. получаем данные из iiko
@@ -85,7 +88,7 @@ async def fetch_nomenclature():
     r        = httpx.get(url, params={"key": token}, verify=False)
     r.raise_for_status()
     data = r.json()
-    print(f"📦 Получено: {len(data)} позиций")
+    logger.info(f"📦 Получено: {len(data)} позиций")
     return data
 
 # ──────────────────────────────────
@@ -96,7 +99,7 @@ async def sync_nomenclature(api_rows: list[dict]):
         # ——— множество ID из ответа API
         api_ids = {row["id"] for row in api_rows if "id" in row}
         if not api_ids:
-            print("⚠️ В ответе нет id – выхожу.")
+            logger.warning("⚠️ В ответе нет id – выхожу.")
             return
 
         # ——— удалить записи, которых больше нет в API
@@ -134,7 +137,7 @@ async def sync_nomenclature(api_rows: list[dict]):
         await session.commit()
 
         total = await session.scalar(select(func.count()).select_from(Nomenclature))
-        print(f"✅ Синхронизировано, записей в БД: {total}")
+        logger.info(f"✅ Синхронизировано, записей в БД: {total}")
 
 # ──────────────────────────────────
 # 4. синхронизация балансов (storeBalanceLevels)   ⬅️ NEW
@@ -157,9 +160,9 @@ async def sync_store_balances(api_rows: list[dict]):
                     })
 
         # ← Вот здесь, после цикла!
-        print("DEBUG: Всего найдено store balances для записи:", len(balances))
+        logger.debug("Всего найдено store balances для записи: %d", len(balances))
         if balances:
-            print("Пример:", balances[:3])
+            logger.debug("Пример: %s", balances[:3])
 
         product_ids = {b["product_id"] for b in balances if b["product_id"]}
         if product_ids:
@@ -174,7 +177,7 @@ async def sync_store_balances(api_rows: list[dict]):
                 balances
             )
         await session.commit()
-        print(f"✅ Синхронизировано store balances для {len(product_ids)} товаров. Записано {len(balances)} балансов.")
+        logger.info(f"✅ Синхронизировано store balances для {len(product_ids)} товаров. Записано {len(balances)} балансов.")
 
 # ──────────────────────────────────
 # 5. точка входа

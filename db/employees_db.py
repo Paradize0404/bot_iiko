@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 import asyncio
+import logging
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, String, Float, Boolean
@@ -36,7 +37,7 @@ async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        print("📦 Таблица employees создана или уже существует.")
+        logging.getLogger(__name__).info("📦 Таблица employees создана или уже существует.")
 
 async def save_employees(employees_data: list[dict]):
     async with async_session() as session:

@@ -19,6 +19,7 @@ from db.stores_db import (
 from db.sprav_db import sync_all_references
 from db.supplier_db import sync_suppliers
 from db.accounts_data import sync_accounts
+from services.db_queries import DBQueries
 logging.basicConfig(level=logging.INFO)
 
 router = Router()
@@ -59,7 +60,7 @@ async def get_name(message: Message, state: FSMContext):
             await tidy_response(
                 message,
                 greet_text,
-                old_msg_id=msg_id,           # редактируем вопрос-«фамилию?»
+                old_msg_id=msg_id,
             )
 
             await message.answer(
@@ -74,10 +75,9 @@ async def get_name(message: Message, state: FSMContext):
             await tidy_response(
                 message,
                 warn_text,
-                old_msg_id=msg_id,                        # редактируем вопрос
-                reply_markup=types.ReplyKeyboardRemove(), # убираем клавиатуру
+                old_msg_id=msg_id,
+                reply_markup=types.ReplyKeyboardRemove(),
             )
-            # остаёмся в RegisterStates.waiting_for_name
 
 
 

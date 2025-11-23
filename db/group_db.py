@@ -5,6 +5,7 @@
 """
 
 import os, asyncio, httpx
+import logging
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base, Mapped, mapped_column
@@ -20,6 +21,8 @@ if not DATABASE_URL:
 engine        = create_async_engine(DATABASE_URL, echo=False)
 async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 Base = declarative_base()
+
+logger = logging.getLogger(__name__)
 
 # ---------- ORM-модель ----------
 class NomenclatureGroup(Base):
@@ -45,7 +48,7 @@ async def init_groups_table() -> None:
     async with engine.begin() as conn:
         await conn.execute(text(CREATE_SQL))
         await conn.execute(text(ALTER_SQL))
-    print("✅ Таблица nomenclature_groups готова")
+    logger.info("✅ Таблица nomenclature_groups готова")
 
 # ---------- работа с iiko ----------
 from iiko.iiko_auth import get_auth_token, get_base_url  # уже есть в проекте
@@ -57,7 +60,7 @@ async def fetch_groups() -> list[dict]:
     r        = httpx.get(url, params={"key": token}, verify=False)
     r.raise_for_status()
     data = r.json()
-    print(f"📦 Получено групп: {len(data)}")
+    logger.info(f"📦 Получено групп: {len(data)}")
     return data
 
 # ---------- синхронизация ----------
@@ -98,7 +101,7 @@ async def sync_groups(api_rows: list[dict]) -> None:
         total = await session.scalar(
             select(func.count()).select_from(NomenclatureGroup)
         )
-        print(f"✅ Синхронизировано, групп в БД: {total}")
+        logger.info(f"✅ Синхронизировано, групп в БД: {total}")
 
 # # ---------- локальный тест ----------
 # async def main():

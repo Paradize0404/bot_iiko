@@ -22,6 +22,8 @@ engine = create_async_engine(DATABASE_URL, echo=False)
 async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 Base = declarative_base()
 
+logger = logging.getLogger(__name__)
+
 # ────── ORM ──────
 class Supplier(Base):
     __tablename__ = "suppliers"
@@ -34,7 +36,7 @@ class Supplier(Base):
 async def init_suppliers_table():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    print("✅ Таблица suppliers готова.")
+    logger.info("✅ Таблица suppliers готова.")
 
 # ────── GET API ──────
 async def fetch_suppliers():
@@ -62,11 +64,11 @@ async def fetch_suppliers():
                     "name": supplier.findtext("name", "").strip()
                 })
 
-            print(f"🔎 Найдено поставщиков: {len(suppliers)}")
+            logger.info(f"🔎 Найдено поставщиков: {len(suppliers)}")
             return suppliers
 
         except Exception as e:
-            print(f"❌ Ошибка при загрузке поставщиков: {e}")
+            logger.exception(f"❌ Ошибка при загрузке поставщиков: {e}")
             return []
 
 # ────── SYNC ──────
@@ -77,7 +79,7 @@ async def sync_suppliers():
     async with async_session() as session:
         api_ids = {s["id"] for s in suppliers if "id" in s}
         if not api_ids:
-            print("⚠️ Поставщики не получены.")
+            logger.warning("⚠️ Поставщики не получены.")
             return
 
         result = await session.execute(select(Supplier.id))
@@ -99,4 +101,4 @@ async def sync_suppliers():
                 session.add(Supplier(id=s_id, name=s.get("name", ""), code=s.get("code", "")))
 
         await session.commit()
-        print(f"✅ Синхронизировано поставщиков: {len(suppliers)}")
+        logger.info(f"✅ Синхронизировано поставщиков: {len(suppliers)}")

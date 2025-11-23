@@ -1,15 +1,14 @@
 from aiogram import Router, F, types
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-  # production router обрабатывает сам
 from keyboards.main_keyboard import get_document_type_keyboard
 from handlers.use_template import get_template_keyboard
 from handlers.use_template import handle_prep_choice
 from handlers.writeoff import start_writeoff 
-from handlers.invoice import start_invoice  # Импортируешь функцию FSM
-router = Router()
+from handlers.invoice import start_invoice
+from config import ADMIN_IDS
 
-ADMIN_IDS = [1877127405, 6446544048]
+router = Router()
 
 
 

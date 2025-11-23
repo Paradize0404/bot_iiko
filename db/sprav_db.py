@@ -18,6 +18,8 @@ engine        = create_async_engine(DATABASE_URL, echo=False)
 async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 Base = declarative_base()
 
+logger = logging.getLogger(__name__)
+
 # ─────────── ORM-модель ───────────
 class ReferenceData(Base):
     __tablename__ = "reference_data"
@@ -46,7 +48,7 @@ REFERENCE_TYPES = [
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    print("✅ Таблица reference_data готова.")
+    logger.info("✅ Таблица reference_data готова.")
 
 # ──────────────────────────────────
 # 2. Синхронизация одной группы справочников
@@ -71,7 +73,7 @@ async def get_sprav_data():
                 r.raise_for_status()
                 results[root_type] = r.json()
             except Exception as e:
-                print(f"❌ Ошибка при загрузке {root_type}: {e}")
+                logger.exception(f"❌ Ошибка при загрузке {root_type}: {e}")
 
     return results
 
@@ -79,7 +81,7 @@ async def sync_reference_type(root_type: str, entries: List[dict]):
     async with async_session() as session:
         api_ids = {entry["id"] for entry in entries if "id" in entry}
         if not api_ids:
-            print(f"⚠️ Пустой справочник: {root_type}")
+            logger.warning(f"⚠️ Пустой справочник: {root_type}")
             return
 
         result = await session.execute(
@@ -117,7 +119,7 @@ async def sync_reference_type(root_type: str, entries: List[dict]):
                 session.add(ReferenceData(**record_data))
 
         await session.commit()
-        print(f"✅ Обновлено: {root_type} ({len(entries)} элементов)")
+        logger.info(f"✅ Обновлено: {root_type} ({len(entries)} элементов)")
 
 # ──────────────────────────────────
 # 3. Синхронизация всех справочников
@@ -132,4 +134,4 @@ async def sync_all_references():
     for key, entries in data.items():
         await sync_reference_type(key, entries)
 
-    print("✅ Все справочники синхронизированы.")
+    logger.info("✅ Все справочники синхронизированы.")

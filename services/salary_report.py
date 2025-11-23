@@ -7,6 +7,9 @@ from iiko.iiko_auth import get_auth_token, get_base_url
 import httpx
 import xml.etree.ElementTree as ET
 from calendar import monthrange
+import logging
+
+logger = logging.getLogger(__name__)
 
 def normalize_isoformat(dt_str: str) -> str:
     if not dt_str:
@@ -61,7 +64,7 @@ def process_attendance(attendances, employee_ids):
     for att in attendances:
         eid = att.findtext("employeeId")
         if eid not in employee_ids:
-            print(f"🛑 employeeId {eid} не найден в базе")  
+            logger.warning(f"🛑 employeeId {eid} не найден в базе")
             continue
         try:
             start = datetime.fromisoformat(normalize_isoformat(att.findtext("dateFrom")))
@@ -75,7 +78,7 @@ def process_attendance(attendances, employee_ids):
                 reg_sum = float(payment_node.findtext("regularPaymentSum", "0.0"))
                 payments_by_employee[eid] = payments_by_employee.get(eid, 0) + reg_sum
         except Exception as e:
-            print(f"⚠️ Ошибка в обработке attendance: {e}")
+            logger.exception(f"⚠️ Ошибка в обработке attendance: {e}")
             continue
 
     return total_by_employee, payments_by_employee, work_days_by_employee
@@ -105,7 +108,7 @@ def build_report(
         name = info["name"]
         rate = info.get("rate") or 0.0
         if info.get("rate") is None:
-            print(f"⚠️ У сотрудника {info['name']} отсутствует ставка (rate)")
+            logger.warning(f"⚠️ У сотрудника {info['name']} отсутствует ставка (rate)")
         percent = info.get("commission_percent", 0.0)
         monthly = info.get("monthly", False)
         per_shift = info.get("per_shift", False)
@@ -178,7 +181,7 @@ async def get_salary_report(from_date: str, to_date: str, db_session: AsyncSessi
         employee_data = await load_employees_from_db(db_session)
         employee_ids = set(employee_data.keys())
         attendances = fetch_attendance_data(token, base_url, from_date, to_date)
-        print(f"✅ Загружены сотрудники: {employee_ids}")
+        logger.info(f"✅ Загружены сотрудники: {employee_ids}")
         total_by_emp, payments_by_emp, work_days_by_emp = process_attendance(attendances, employee_ids)
 
         try:

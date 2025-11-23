@@ -5,6 +5,7 @@
 """
 
 import os, asyncio, httpx, xml.etree.ElementTree as ET
+import logging
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base, Mapped, mapped_column
@@ -23,6 +24,8 @@ DEPARTMENT_ID = os.getenv("DEPARTMENT_ID")
 engine        = create_async_engine(DATABASE_URL, echo=False)
 async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 Base = declarative_base()
+
+logger = logging.getLogger(__name__)
 
 # ---------- ORM‑модель ----------
 class Store(Base):
@@ -48,7 +51,7 @@ CREATE TABLE IF NOT EXISTS stores (
 async def init_stores_table() -> None:
     async with engine.begin() as conn:
         await conn.execute(text(CREATE_SQL))
-    print("✅ Таблица stores готова")
+    logger.info("✅ Таблица stores готова")
 
 # ---------- работа с iiko ----------
 from iiko.iiko_auth import get_auth_token, get_base_url  # уже есть в проекте
@@ -79,7 +82,7 @@ async def fetch_stores() -> list[dict]:
     r.raise_for_status()
     xml_data = r.text
     rows = _parse_xml(xml_data, DEPARTMENT_ID)
-    print(f"📦 Получено складов: {len(rows)}")
+    logger.info(f"📦 Получено складов: {len(rows)}")
     return rows
 
 # ---------- синхронизация ----------
@@ -121,7 +124,7 @@ async def sync_stores(api_rows: list[dict]) -> None:
         await session.commit()
 
         total = await session.scalar(select(func.count()).select_from(Store))
-        print(f"✅ Синхронизировано, складов в БД: {total}")
+        logger.info(f"✅ Синхронизировано, складов в БД: {total}")
 
 # ---------- локальный тест ----------
 # async def main():

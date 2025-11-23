@@ -4,6 +4,7 @@ import os
 import httpx
 import logging
 from dotenv import load_dotenv
+import logging
 from typing import List
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base, Mapped, mapped_column
@@ -19,6 +20,8 @@ if not DATABASE_URL:
 engine = create_async_engine(DATABASE_URL, echo=False)
 async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 Base = declarative_base()
+
+logger = logging.getLogger(__name__)
 
 # ─────────── ORM-модель ───────────
 class Account(Base):
@@ -38,7 +41,7 @@ from iiko.iiko_auth import get_auth_token, get_base_url
 async def init_account_table():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    print("✅ Таблица accounts готова.")
+    logger.info("✅ Таблица accounts готова.")
 
 async def fetch_accounts():
     url = f"{get_base_url()}/resto/api/v2/entities/list"
@@ -87,4 +90,4 @@ async def sync_accounts():
                 session.add(Account(**record_data))
 
         await session.commit()
-        print(f"✅ Счета синхронизированы: {len(accounts)} элементов")
+        logger.info(f"✅ Счета синхронизированы: {len(accounts)} элементов")

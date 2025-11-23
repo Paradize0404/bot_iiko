@@ -1,21 +1,15 @@
-import asyncpg
-import pprint
-from aiogram import Bot
-from aiogram import Router, F, types
+from aiogram import Bot, Router, F, types
 from aiogram.fsm.context import FSMContext
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.state import StatesGroup, State
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from sqlalchemy import String, select, JSON, inspect, Column
+from sqlalchemy.orm import Mapped, mapped_column, declarative_base
 from sqlalchemy.ext.asyncio import AsyncEngine
-from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy import String, select, JSON, inspect
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, String
 from db.employees_db import async_session
 from sqlalchemy.dialects.postgresql import insert
-
-from utils.telegram_helpers import edit_or_send  # Для редактирования сообщений
+from utils.telegram_helpers import edit_or_send
+from config import PARENT_FILTERS, STORE_NAME_MAP
+from services.db_queries import DBQueries
 
 router = Router()
 
@@ -60,19 +54,6 @@ class Supplier(Base):
     name = Column(String)
 
 
-
-STORE_NAME_MAP = {
-    "Бар": ["Бар Пиццерия"],
-    "Кухня": ["Кухня Пиццерия"]
-}
-
-
-
-PARENT_FILTERS = [
-    '4d2a8e1d-7c24-4df1-a8bd-58a6e2e82a12',
-    '6c5f1595-ce55-459d-b368-94bab2f20ee3'  # Да, они одинаковые — ты это указал
-]
-
 async def ensure_preparation_table_exists(engine: AsyncEngine):
     async with engine.begin() as conn:
         def check_tables(sync_conn):
@@ -115,39 +96,16 @@ async def get_store_id_by_name(user_input_name: str) -> str | None:
 
 
 async def search_nomenclature(partial_name: str) -> list[dict]:
-    async with async_session() as session:
-        terms = [t.strip() for t in partial_name.lower().split() if t.strip()]
-        if not terms:
-            return []
-
-        query = select(Nomenclature.id, Nomenclature.name, Nomenclature.mainunit).limit(50)
-
-        # ✅ Фильтр по допустимым родителям
-        query = query.where(Nomenclature.parent.in_(PARENT_FILTERS))
-
-        # ✅ Фильтрация по всем частям запроса
-        for term in terms:
-            query = query.where(Nomenclature.name.ilike(f"%{term}%"))
-
-        result = await session.execute(query)
-        rows = result.all()
-        return [{"id": r.id, "name": r.name, "mainunit": r.mainunit} for r in rows]
-
+    """Search nomenclature - delegates to unified service."""
+    return await DBQueries.search_nomenclature(
+        partial_name,
+        parents=PARENT_FILTERS
+    )
 
 
 async def search_suppliers(partial_name: str) -> list[dict]:
-    async with async_session() as session:
-        terms = [t.strip().lower() for t in partial_name.split() if t.strip()]
-        if not terms:
-            return []
-
-        query = select(Supplier.id, Supplier.name).limit(50)
-        for term in terms:
-            query = query.where(Supplier.name.ilike(f"%{term}%"))
-
-        result = await session.execute(query)
-        rows = result.all()
-        return [{"id": r.id, "name": r.name} for r in rows]
+    """Search suppliers - delegates to unified service."""
+    return await DBQueries.search_suppliers(partial_name)
 
 
 

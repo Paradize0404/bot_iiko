@@ -6,6 +6,7 @@ from iiko.iiko_auth import get_auth_token, get_base_url
 
 import xml.etree.ElementTree as ET
 from db.employees_db import save_employees, init_db
+logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
 
@@ -46,7 +47,7 @@ async def fetch_employees():
                 "department": "Зал"
             }
 
-            print(data)
+            logger.debug("Employee data: %s", data)
             employees.append(data)
         await init_db()
         await save_employees(employees)

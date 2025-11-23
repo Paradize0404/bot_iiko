@@ -1,3 +1,4 @@
+## ────────────── Состояния FSM для различных процессов ──────────────
 from aiogram.fsm.state import State, StatesGroup
 
 

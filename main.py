@@ -1,3 +1,4 @@
+## ────────────── Импорт библиотек и настройка логирования ──────────────
 import asyncio
 import logging
 from utils.logging_config import setup_logging
@@ -10,7 +11,11 @@ from bot import dp
 from utils.db_stores import init_pool
 from handlers.template_creation import preload_stores
 
+## ────────────── Функция запуска бота ──────────────
 async def _startup():
+    """
+    Инициализация пула соединений БД, кэширование складов и запуск polling
+    """
     await init_pool()  
     await preload_stores()          # ← добавляем
     # ensure Bot instance exists and use it for polling

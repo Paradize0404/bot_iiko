@@ -1,7 +1,5 @@
-"""
-Base document handler for common document workflows (writeoff, transfer, etc).
-Reduces code duplication across similar handlers.
-"""
+
+## ────────────── Импорт библиотек и общих функций ──────────────
 
 from abc import ABC, abstractmethod
 from aiogram import Bot, types
@@ -16,6 +14,7 @@ from config import DOC_CONFIG
 import logging
 
 
+## ────────────── Состояния FSM для базового документа ──────────────
 class DocumentStates(StatesGroup):
     """Base FSM states for document workflows"""
     Store1 = State()
@@ -26,6 +25,7 @@ class DocumentStates(StatesGroup):
     Quantity = State()
 
 
+## ────────────── Вспомогательная функция нормализации единиц ──────────────
 def _normalize_unit(unit: str) -> str:
     """Normalize unit name to simple codes: 'kg', 'ml', 'l', 'шт', etc."""
     if not unit:
@@ -42,6 +42,7 @@ def _normalize_unit(unit: str) -> str:
     return u
 
 
+## ────────────── Абстрактный базовый класс обработчика документа ──────────────
 class BaseDocumentHandler(ABC):
     """Abstract base class for document handlers (writeoff, transfer, invoice, etc)"""
 
@@ -63,11 +64,13 @@ class BaseDocumentHandler(ABC):
         """Format header message for the document"""
         pass
 
+    ## ────────────── Получение имени сотрудника по Telegram ID ──────────────
     async def get_employee_name(self, tg_id: str) -> str:
         """Get employee name by telegram ID"""
         user = await DBQueries.get_employee_by_telegram(tg_id)
         return f"{user.first_name} {user.last_name}" if user else "Неизвестно"
 
+    ## ────────────── Обновление заголовка документа ──────────────
     async def update_header(
         self, bot: Bot, chat_id: int, msg_id: int, data: dict
     ) -> None:
@@ -99,6 +102,7 @@ class BaseDocumentHandler(ABC):
         except Exception as e:
             logging.warning(f"⚠️ Не удалось обновить заголовок: {e}")
 
+    ## ────────────── Формирование клавиатуры выбора товара ──────────────
     def build_item_keyboard(
         self, results: list[dict], callback_prefix: str
     ) -> InlineKeyboardMarkup:

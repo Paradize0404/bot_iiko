@@ -6,9 +6,12 @@ from iiko.iiko_auth import get_auth_token, get_base_url
 
 import xml.etree.ElementTree as ET
 from db.employees_db import save_employees, init_db
+
+## ────────────── Логгер ──────────────
 logger = logging.getLogger(__name__)
 
 
+## ────────────── Получение и сохранение сотрудников из iiko ──────────────
 async def fetch_employees():
     token = await get_auth_token()
     base_url = get_base_url()

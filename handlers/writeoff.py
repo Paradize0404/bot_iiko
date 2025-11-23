@@ -1,7 +1,5 @@
-"""
-Simplified writeoff (списание) handler.
-Reduced from 434 lines to ~220 lines using BaseDocumentHandler.
-"""
+
+## ────────────── Импорт библиотек и общих функций ──────────────
 
 import logging
 import asyncio
@@ -21,11 +19,14 @@ from config import DOC_CONFIG
 from db.sprav_db import ReferenceData as Accounts
 from services.db_queries import DBQueries
 
+
+## ────────────── Логгер и роутер для aiogram ──────────────
 router = Router()
 
 STORE_PAYMENT_FILTERS = DOC_CONFIG["writeoff"]["stores"]
 
 
+## ────────────── Состояния FSM для акта списания ──────────────
 class WriteoffStates(StatesGroup):
     Store = State()
     PaymentType = State()
@@ -34,6 +35,7 @@ class WriteoffStates(StatesGroup):
     Quantity = State()
 
 
+## ────────────── Класс обработчика акта списания ──────────────
 class WriteoffHandler(BaseDocumentHandler):
     """Handler for writeoff documents (акт списания)"""
     doc_type = "writeoff"
@@ -73,14 +75,20 @@ class WriteoffHandler(BaseDocumentHandler):
         )
 
 
+
+## ────────────── Экземпляр обработчика ──────────────
 writeoff_handler = WriteoffHandler()
 
 
-# ─────────────────────────────── Handlers ───────────────────────────────
+
+## ────────────── Основные обработчики FSM акта списания ──────────────
 
 
 @router.callback_query(F.data == "doc:writeoff")
 async def start_writeoff(callback: types.CallbackQuery, state: FSMContext):
+    """
+    Старт процесса акта списания: выбор склада
+    """
     await preload_stores()
     await state.clear()
     keyboard = await writeoff_handler.get_store_keyboard({})
@@ -90,6 +98,9 @@ async def start_writeoff(callback: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data.startswith("w_store:"))
 async def choose_store(callback: types.CallbackQuery, state: FSMContext):
+    """
+    Обработка выбора склада
+    """
     store_name = callback.data.split(":")[1]
     store_id = STORE_CACHE.get(f"{store_name} Пиццерия")
     if not store_id:
@@ -108,6 +119,9 @@ async def choose_store(callback: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data.startswith("w_type:"))
 async def choose_type(callback: types.CallbackQuery, state: FSMContext):
+    """
+    Обработка выбора типа списания
+    """
     type_id = callback.data.split(":")[1]
     async with async_session() as session:
         result = await session.execute(select(Accounts).where(Accounts.id == type_id))
@@ -120,6 +134,9 @@ async def choose_type(callback: types.CallbackQuery, state: FSMContext):
 
 @router.message(WriteoffStates.Comment)
 async def get_reason(message: types.Message, state: FSMContext):
+    """
+    Ввод причины списания
+    """
     reason = message.text.strip()
     await message.delete()
     await state.update_data(reason=reason)
@@ -134,6 +151,9 @@ async def get_reason(message: types.Message, state: FSMContext):
 
 @router.message(WriteoffStates.AddItems)
 async def search_products(message: types.Message, state: FSMContext):
+    """
+    Поиск и выбор товара для списания
+    """
     query = message.text.strip()
     await message.delete()
     
@@ -152,6 +172,9 @@ async def search_products(message: types.Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("w_item:"))
 async def select_item(callback: types.CallbackQuery, state: FSMContext):
+    """
+    Подтверждение выбора товара и ввод количества
+    """
     item_id = callback.data.split(":")[1]
     data = await state.get_data()
     cache = data.get("nomenclature_cache", {})
@@ -177,6 +200,9 @@ async def select_item(callback: types.CallbackQuery, state: FSMContext):
 
 @router.message(WriteoffStates.Quantity)
 async def save_quantity(message: types.Message, state: FSMContext):
+    """
+    Сохраняет количество для выбранного товара
+    """
     try:
         quantity = float(message.text.replace(",", "."))
     except ValueError:
@@ -222,12 +248,18 @@ async def save_quantity(message: types.Message, state: FSMContext):
 
 @router.callback_query(F.data == "w_more")
 async def more_items(callback: types.CallbackQuery, state: FSMContext):
+    """
+    Добавить ещё товар
+    """
     await state.set_state(WriteoffStates.AddItems)
     await callback.message.edit_text("🔍 Введите часть названия товара:")
 
 
 @router.callback_query(F.data == "w_done")
 async def finalize_writeoff(callback: types.CallbackQuery, state: FSMContext):
+    """
+    Завершение и отправка акта списания в iiko
+    """
     data = await state.get_data()
     items = data.get("items", [])
     
@@ -266,7 +298,9 @@ async def finalize_writeoff(callback: types.CallbackQuery, state: FSMContext):
 
 
 async def _send_writeoff(bot: Bot, chat_id: int, msg_id: int, url: str, params: dict, document: dict):
-    """Background task to send writeoff to iiko"""
+    """
+    Фоновая задача отправки акта списания в iiko
+    """
     try:
         async with httpx.AsyncClient(verify=False) as client:
             response = await client.post(url, params=params, json=document, timeout=30.0)

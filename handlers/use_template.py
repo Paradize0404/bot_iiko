@@ -45,12 +45,23 @@ router = Router()
 logger = logging.getLogger(__name__)
 
 
+## ────────────── Импорт библиотек и общих функций ──────────────
+
+## ────────────── Состояния FSM для применения шаблона ──────────────
 class TemplateFill(StatesGroup):
+    """
+    Состояния FSM для применения шаблона:
+    - AwaitQuantity: ввод количества для каждой позиции
+    """
     AwaitQuantity = State()
 
 
+## ────────────── Старт применения шаблона ──────────────
 @router.callback_query(F.data == "prep:by_template")
 async def show_templates(c: types.CallbackQuery):
+    """
+    Показывает список доступных шаблонов для выбора
+    """
     templates = await list_templates()
     if not templates:
         return await c.message.edit_text("⚠️ Нет доступных шаблонов.")
@@ -58,8 +69,12 @@ async def show_templates(c: types.CallbackQuery):
     await c.message.edit_text("📋 Выберите шаблон:", reply_markup=kb)
 
 
+## ────────────── Выбор шаблона для применения ──────────────
 @router.callback_query(F.data.startswith("use_template:"))
 async def use_template_handler(callback: types.CallbackQuery, state: FSMContext):
+    """
+    Обработка выбора шаблона и запуск FSM заполнения позиций
+    """
     name = callback.data.split(":", 1)[1]
     tpl = await get_template(name)
     if not tpl:
@@ -68,10 +83,13 @@ async def use_template_handler(callback: types.CallbackQuery, state: FSMContext)
     header = (
         f"📦 <b>Шаблон: {tpl.name}</b>\n"
         f"🔁 Склад откуда: {await get_name('Store', tpl.from_store_id)}\n"
+# ────────────── Логгер и роутер для aiogram ──────────────
         f"➡️ Склад куда: {await get_name('Store', tpl.to_store_id)}\n"
         f"🚚 Поставщик: {await get_name('Supplier', tpl.supplier_id)}"
     )
     await callback.message.edit_text(header, parse_mode="HTML")
+
+# ────────────── Состояния FSM для применения шаблона ──────────────
     first = tpl.items[0]
     q_text = f"🔢 Сколько {await get_unit_name(first['mainunit'])} для «{first['name']}»?"
     q_msg = await callback.message.answer(q_text)
@@ -80,6 +98,8 @@ async def use_template_handler(callback: types.CallbackQuery, state: FSMContext)
         template_items=tpl.items,
         current_index=0,
         prev_msg_id=q_msg.message_id,
+
+# ────────────── Выбор шаблона для применения ──────────────
         from_store_id=tpl.from_store_id,
         to_store_id=tpl.to_store_id,
         supplier_id=tpl.supplier_id,
@@ -89,8 +109,12 @@ async def use_template_handler(callback: types.CallbackQuery, state: FSMContext)
     await state.set_state(TemplateFill.AwaitQuantity)
 
 
+## ────────────── Ввод количества для каждой позиции ──────────────
 @router.message(TemplateFill.AwaitQuantity)
 async def handle_quantity_input(message: types.Message, state: FSMContext):
+    """
+    Обработка ввода количества для каждой позиции шаблона
+    """
     data = await state.get_data()
     idx = data.get('current_index', 0)
     items = data.get('template_items', [])
@@ -110,6 +134,8 @@ async def handle_quantity_input(message: types.Message, state: FSMContext):
         return
 
     # finished
+
+# ────────────── Ввод количества для каждой позиции ──────────────
     await message.delete()
     final = {
         'name': data.get('template_name'),

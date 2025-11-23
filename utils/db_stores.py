@@ -1,4 +1,4 @@
-# utils/db_stores.py
+## ────────────── Утилита работы с пулом соединений БД ──────────────
 import os, asyncpg
 from typing import Iterable, Sequence
 from dotenv import load_dotenv
@@ -7,6 +7,7 @@ load_dotenv()
 _POOL: asyncpg.Pool | None = None
 
 
+## ────────────── Инициализация пула соединений ──────────────
 async def init_pool() -> None:
     """Создаём пул при старте бота (один раз)."""
     global _POOL
@@ -22,7 +23,7 @@ async def init_pool() -> None:
         _POOL = await asyncpg.create_pool(dsn, min_size=1, max_size=10)
 
 
-# ---------- выборки ----------
+## ────────────── Функции выборки складов ──────────────
 
 async def fetch_by_names(names: Iterable[str]) -> list[tuple[str, str]]:
     """

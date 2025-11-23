@@ -1,7 +1,5 @@
-"""
-Unified database queries service.
-Centralize all repeated database access patterns to reduce code duplication.
-"""
+
+## ────────────── Сервис централизованных запросов к базе данных ──────────────
 
 from sqlalchemy import select
 from db.employees_db import async_session, Employee
@@ -10,9 +8,11 @@ from db.sprav_db import ReferenceData as Accounts
 from config import PARENT_FILTERS
 
 
+## ────────────── Класс сервисных запросов к базе данных ──────────────
 class DBQueries:
     """Database query service for common operations."""
 
+    ## ────────────── Получение сотрудника по Telegram ID ──────────────
     @staticmethod
     async def get_employee_by_telegram(tg_id: str) -> Employee | None:
         """Get employee by Telegram ID."""
@@ -22,6 +22,7 @@ class DBQueries:
             )
             return result.scalar_one_or_none()
 
+    ## ────────────── Получение счетов по именам ──────────────
     @staticmethod
     async def get_accounts_by_names(names: list[str]) -> list[Accounts]:
         """Get accounts (payment types) by names."""
@@ -31,6 +32,7 @@ class DBQueries:
             )
             return result.scalars().all()
 
+    ## ────────────── Поиск номенклатуры ──────────────
     @staticmethod
     async def search_nomenclature(
         partial_name: str,
@@ -89,6 +91,7 @@ class DBQueries:
                 for r in rows
             ]
 
+    ## ────────────── Поиск поставщиков ──────────────
     @staticmethod
     async def search_suppliers(partial_name: str, limit: int = 50) -> list[dict]:
         """Search suppliers by name."""

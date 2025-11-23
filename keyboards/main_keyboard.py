@@ -1,3 +1,4 @@
+## ────────────── Импорт библиотек и общих функций ──────────────
 import logging
 from aiogram import Router, F
 from aiogram.types import Message
@@ -6,8 +7,10 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 from utils.telegram_helpers import tidy_response
 from config import ADMIN_IDS
 
+## ────────────── Логгер и роутер для aiogram ──────────────
 router = Router()
 
+## ────────────── Функции создания клавиатур ──────────────
 def main_menu_keyboard(user_id: int) -> ReplyKeyboardMarkup:
     keyboard = []
 
@@ -47,6 +50,7 @@ def get_reports_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
+## ────────────── Обработчики команд ──────────────
 @router.message(F.text == "📊 Отчёты")
 async def handle_reports_button(message: Message):
     await message.answer("Выберите тип отчета:", reply_markup=get_reports_keyboard())

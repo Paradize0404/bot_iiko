@@ -1,13 +1,16 @@
-# handlers/invoice.py
+
+## ────────────── Импорт библиотек и общих функций ──────────────
 
 from aiogram import Router, types, F
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
+
+## ────────────── Логгер и роутер для aiogram ──────────────
 router = Router()
 
-# FSM — состояния
+## ────────────── Состояния FSM для расходной накладной ──────────────
 class IncomingInvoiceStates(StatesGroup):
     SelectType = State()
     SelectStore = State()
@@ -22,7 +25,11 @@ class IncomingInvoiceStates(StatesGroup):
 EXPENSE_STORE_ID = "..."     # ID "Расход Пиццерия" — подставь свой!
 MAGAZIN_NAL_ID = "..."       # ID контрагента "Магазин нал" — подставь свой!
 
+## ────────────── Старт создания расходной накладной ──────────────
 async def start_invoice(callback: types.CallbackQuery, state: FSMContext):
+    """
+    Запуск FSM для расходной накладной
+    """
     await state.clear()
     await state.set_state(IncomingInvoiceStates.SelectType)
     await callback.message.edit_text(
@@ -36,8 +43,12 @@ async def start_invoice(callback: types.CallbackQuery, state: FSMContext):
     )
 
 # 2. Обработка выбора типа расхода (услуга/товар)
+## ────────────── Обработка выбора типа расхода ──────────────
 @router.callback_query(F.data.startswith("inv_type:"))
 async def handle_invoice_type(callback: types.CallbackQuery, state: FSMContext):
+    """
+    Обработка выбора типа расхода (услуга/товар)
+    """
     invoice_type = callback.data.split(":")[1]
     await state.update_data(invoice_type=invoice_type)
 

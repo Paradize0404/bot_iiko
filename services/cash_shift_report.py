@@ -2,9 +2,12 @@ import httpx
 from iiko.iiko_auth import get_auth_token, get_base_url  # ⬅️ относительный импорт
 import logging
 
+
+## ────────────── Логгер ──────────────
 logger = logging.getLogger(__name__)
 
 
+## ────────────── Получение данных по кассовым сменам ──────────────
 async def get_cash_shifts_with_details(from_date: str, to_date: str) -> float:
     token = await get_auth_token()
     base_url = get_base_url()

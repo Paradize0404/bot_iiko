@@ -1,3 +1,4 @@
+## ────────────── Импорт библиотек и инициализация Dispatcher ──────────────
 import os
 import logging
 from aiogram import Dispatcher
@@ -17,10 +18,13 @@ from handlers import internal_transfer_upload
 from handlers import invoice
 # from utils.db_stores import init_pool
 
+## ────────────── Настройка логирования и создание диспетчера ──────────────
 logging.basicConfig(level=logging.DEBUG)
 logging.info("📦 Initializing Dispatcher")
 
 dp = Dispatcher(storage=MemoryStorage())
+
+## ────────────── Регистрация роутеров ──────────────
 dp.include_router(commands.router)
 dp.include_router(salary.router)
 dp.include_router(writeoff_upload.router)

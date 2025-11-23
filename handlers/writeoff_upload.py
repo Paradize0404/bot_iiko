@@ -12,15 +12,19 @@ from db.employees_db import async_session
 from handlers.writeoff import Accounts
 from iiko.iiko_auth import get_auth_token, get_base_url
 from handlers.template_creation import preload_stores, STORE_CACHE
+
+## ────────────── Логгер и роутер для aiogram ──────────────
 router = Router()
 logger = logging.getLogger(__name__)
 
 
 
+## ────────────── Состояния FSM для отчёта по списаниям ──────────────
 class WriteoffStates(StatesGroup):
     selecting_start = State()
     selecting_end = State()
 
+## ────────────── Функция формирования и отправки отчёта ──────────────
 async def send_grouped_writeoff_report(message: Message, from_dt: datetime, to_dt: datetime):
     try:
         new_status_count = 0
@@ -89,6 +93,7 @@ async def send_grouped_writeoff_report(message: Message, from_dt: datetime, to_d
         logger.exception("[Ошибка] %s", e)
         await message.answer("❌ Ошибка при получении или обработке данных.")
 
+## ────────────── Старт выбора периода для отчёта ──────────────
 @router.message(F.text == "📉 Списания")
 async def writeoff_select_date_start(message: Message, state: FSMContext):
     today = datetime.today()
@@ -97,6 +102,7 @@ async def writeoff_select_date_start(message: Message, state: FSMContext):
     await message.answer("Выберите дату начала периода:", reply_markup=calendar)
 
 
+## ────────────── Обработка inline-календаря для выбора дат ──────────────
 @router.callback_query(F.data.startswith("CAL:writeoff"))
 async def handle_writeoff_calendar(callback: CallbackQuery, state: FSMContext):
     data = parse_callback_data(callback.data)

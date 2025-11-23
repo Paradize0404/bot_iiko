@@ -1,3 +1,4 @@
+## ────────────── Модуль авторизации в iiko API ──────────────
 import httpx
 import logging
 
@@ -9,6 +10,7 @@ BASE_URL = "https://pizzayolo.iiko.it"
 logger = logging.getLogger(__name__)
 
 
+## ────────────── Получение токена авторизации ──────────────
 async def get_auth_token() -> str:
     """Получить токен авторизации от iiko (async)."""
     auth_url = f"{BASE_URL}/resto/api/auth"
@@ -37,6 +39,7 @@ async def get_auth_token() -> str:
         raise
 
 
+## ────────────── Получение базового URL ──────────────
 def get_base_url() -> str:
     """Вернуть базовый URL для iiko API"""
     return BASE_URL

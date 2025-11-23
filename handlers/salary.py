@@ -1,27 +1,36 @@
+
+## ────────────── Импорт библиотек и общих функций ──────────────
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from datetime import datetime
-
 from keyboards.inline_calendar import build_calendar, parse_callback_data
 from states import SalaryStates
 from services.salary_report import get_salary_report
 from db.employees_db import async_session
 import logging
 
+## ────────────── Логгер и роутер для aiogram ──────────────
 logger = logging.getLogger(__name__)
-
 router = Router()
 
+## ────────────── Старт выбора периода для отчёта по зарплате ──────────────
 @router.message(F.text == "💰 Зарплата")
 async def salary_menu(message: Message, state: FSMContext):
+    """
+    Показывает календарь для выбора даты начала периода
+    """
     today = datetime.today()
     calendar = build_calendar(today.year, today.month, calendar_id="salary_start", mode="single")
     await state.set_state(SalaryStates.selecting_start)
     await message.answer("Выберите дату начала периода:", reply_markup=calendar)
 
+## ────────────── Обработка inline-календаря для даты начала ──────────────
 @router.callback_query(F.data.startswith("CAL:salary_start"))
 async def handle_salary_start_calendar(callback: CallbackQuery, state: FSMContext):
+    """
+    Обработка выбора даты начала периода
+    """
     logger.debug("HANDLE_START_CALENDAR callback.data: %s", callback.data)
     cur_state = await state.get_state()
     logger.debug("FSM STATE (start): %s", cur_state)
@@ -53,8 +62,12 @@ async def handle_salary_start_calendar(callback: CallbackQuery, state: FSMContex
         calendar = build_calendar(today.year, today.month, calendar_id="salary_end", mode="single")
         await callback.message.edit_text("Теперь выберите дату окончания периода:", reply_markup=calendar)
 
+## ────────────── Обработка inline-календаря для даты окончания ──────────────
 @router.callback_query(F.data.startswith("CAL:salary_end"))
 async def handle_salary_end_calendar(callback: CallbackQuery, state: FSMContext):
+    """
+    Обработка выбора даты окончания периода и формирование отчёта
+    """
     logger.debug("HANDLE_END_CALENDAR callback.data: %s", callback.data)
     cur_state = await state.get_state()
     logger.debug("FSM STATE (end): %s", cur_state)

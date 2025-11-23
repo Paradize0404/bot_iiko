@@ -9,8 +9,11 @@ import xml.etree.ElementTree as ET
 from calendar import monthrange
 import logging
 
+
+## ────────────── Логгер ──────────────
 logger = logging.getLogger(__name__)
 
+## ────────────── Вспомогательные функции для дат ──────────────
 def normalize_isoformat(dt_str: str) -> str:
     if not dt_str:
         return dt_str
@@ -30,6 +33,7 @@ def normalize_isoformat(dt_str: str) -> str:
 def _strip_tz(dt):
     return dt.replace(tzinfo=None) if dt.tzinfo else dt
 
+## ────────────── Загрузка сотрудников из БД ──────────────
 async def load_employees_from_db(session: AsyncSession):
     result = await session.execute(select(Employee))
     employees = result.scalars().all()
@@ -45,6 +49,7 @@ async def load_employees_from_db(session: AsyncSession):
         for emp in employees
     }
 
+## ────────────── Получение данных посещаемости из iiko ──────────────
 async def fetch_attendance_data(token: str, base_url: str, from_date: str, to_date: str):
     url = f"{base_url}/resto/api/employees/attendance/"
     async with httpx.AsyncClient(verify=False) as client:
@@ -57,6 +62,7 @@ async def fetch_attendance_data(token: str, base_url: str, from_date: str, to_da
     tree = ET.fromstring(response.text)
     return tree.findall(".//attendance")
 
+## ────────────── Обработка данных посещаемости ──────────────
 def process_attendance(attendances, employee_ids):
     total_by_employee = {}
     payments_by_employee = {}
@@ -84,6 +90,7 @@ def process_attendance(attendances, employee_ids):
 
     return total_by_employee, payments_by_employee, work_days_by_employee
 
+## ────────────── Формирование итогового отчёта ──────────────
 def build_report(
     employee_data,
     total_by_employee,
@@ -175,6 +182,7 @@ def build_report(
     result.append(f"\n\U0001F9FE <b>Общая сумма выплат:</b> {total_sum:,.2f} ₽")
     return "\n".join(result)
 
+## ────────────── Основная функция получения отчёта по зарплате ──────────────
 async def get_salary_report(from_date: str, to_date: str, db_session: AsyncSession) -> str:
     try:
         token = await get_auth_token()

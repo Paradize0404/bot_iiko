@@ -1,4 +1,4 @@
-# config.py
+## ────────────── Конфигурация бота и настройки проекта ──────────────
 import os
 from aiogram import Bot
 from aiogram.enums import ParseMode
@@ -15,6 +15,7 @@ load_dotenv()
 # Configuration values. Avoid side-effects on import — create runtime resources lazily.
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
+## ────────────── Функция создания экземпляра бота ──────────────
 def get_bot(token: str | None = None):
     """Create and return an aiogram Bot instance. Raises if no token provided."""
     tk = token or BOT_TOKEN

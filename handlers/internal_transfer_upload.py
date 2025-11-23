@@ -17,9 +17,12 @@ import httpx
 from datetime import datetime
 from services.db_queries import DBQueries
 
+
+## ────────────── Логгер и роутер для aiogram ──────────────
 router = Router()
 
 
+## ────────────── Состояния FSM для внутреннего перемещения ──────────────
 class InternalTransferStates(StatesGroup):
     StoreFrom = State()
     StoreTo = State()
@@ -28,6 +31,7 @@ class InternalTransferStates(StatesGroup):
     Quantity = State()
 
 
+## ────────────── Класс обработчика внутреннего перемещения ──────────────
 class TransferHandler(BaseDocumentHandler):
     """Handler for internal transfers (внутреннее перемещение)"""
     doc_type = "transfer"
@@ -58,14 +62,20 @@ class TransferHandler(BaseDocumentHandler):
         )
 
 
+
+## ────────────── Экземпляр обработчика ──────────────
 transfer_handler = TransferHandler()
 
 
-# ─────────────────────────────── Handlers ───────────────────────────────
+
+## ────────────── Основные обработчики FSM внутреннего перемещения ──────────────
 
 
 @router.callback_query(F.data == "doc:move")
 async def start_transfer(callback: types.CallbackQuery, state: FSMContext):
+    """
+    Старт процесса внутреннего перемещения: выбор склада-отправителя
+    """
     await preload_stores()
     await state.clear()
     keyboard = await transfer_handler.get_store_keyboard({})
@@ -75,6 +85,9 @@ async def start_transfer(callback: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data.startswith("t_store_from:"))
 async def choose_store_from(callback: types.CallbackQuery, state: FSMContext):
+    """
+    Обработка выбора склада-отправителя
+    """
     store_name = callback.data.split(":")[1]
     store_id = await get_store_id_by_name(store_name)
     if not store_id:
@@ -92,6 +105,9 @@ async def choose_store_from(callback: types.CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data.startswith("t_store_to:"))
 async def choose_store_to(callback: types.CallbackQuery, state: FSMContext):
+    """
+    Обработка выбора склада-получателя
+    """
     store_name = callback.data.split(":")[1]
     store_id = await get_store_id_by_name(store_name)
     if not store_id:
@@ -110,6 +126,9 @@ async def choose_store_to(callback: types.CallbackQuery, state: FSMContext):
 
 @router.message(InternalTransferStates.Comment)
 async def get_comment(message: types.Message, state: FSMContext):
+    """
+    Ввод комментария к перемещению
+    """
     comment = message.text.strip() if message.text != "-" else ""
     await message.delete()
     await state.update_data(comment=comment, items=[])
@@ -124,6 +143,9 @@ async def get_comment(message: types.Message, state: FSMContext):
 
 @router.message(InternalTransferStates.AddItems)
 async def search_products(message: types.Message, state: FSMContext):
+    """
+    Поиск и выбор товара для перемещения
+    """
     query = message.text.strip()
     await message.delete()
     
@@ -142,6 +164,9 @@ async def search_products(message: types.Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("t_item:"))
 async def select_item(callback: types.CallbackQuery, state: FSMContext):
+    """
+    Подтверждение выбора товара и ввод количества
+    """
     item_id = callback.data.split(":")[1]
     data = await state.get_data()
     cache = data.get("nomenclature_cache", {})
@@ -167,6 +192,9 @@ async def select_item(callback: types.CallbackQuery, state: FSMContext):
 
 @router.message(InternalTransferStates.Quantity)
 async def save_quantity(message: types.Message, state: FSMContext):
+    """
+    Сохраняет количество для выбранного товара
+    """
     try:
         quantity = float(message.text.replace(",", "."))
     except ValueError:
@@ -212,12 +240,18 @@ async def save_quantity(message: types.Message, state: FSMContext):
 
 @router.callback_query(F.data == "t_more")
 async def more_items(callback: types.CallbackQuery, state: FSMContext):
+    """
+    Добавить ещё товар
+    """
     await state.set_state(InternalTransferStates.AddItems)
     await callback.message.edit_text("🔍 Введите часть названия товара:")
 
 
 @router.callback_query(F.data == "t_done")
 async def finalize_transfer(callback: types.CallbackQuery, state: FSMContext):
+    """
+    Завершение и отправка перемещения в iiko
+    """
     data = await state.get_data()
     items = data.get("items", [])
     
@@ -256,7 +290,9 @@ async def finalize_transfer(callback: types.CallbackQuery, state: FSMContext):
 
 
 async def _send_transfer(bot: Bot, chat_id: int, msg_id: int, url: str, params: dict, document: dict):
-    """Background task to send transfer to iiko"""
+    """
+    Фоновая задача отправки перемещения в iiko
+    """
     try:
         async with httpx.AsyncClient(verify=False) as client:
             response = await client.post(url, params=params, json=document, timeout=30.0)

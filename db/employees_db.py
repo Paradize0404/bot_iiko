@@ -8,6 +8,8 @@ from sqlalchemy import Column, String, Float, Boolean
 from sqlalchemy.orm import sessionmaker
 
 
+
+## ────────────── Загрузка переменных окружения и настройка БД ──────────────
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
@@ -16,6 +18,7 @@ if not DATABASE_URL:
 
 Base = declarative_base()
 
+## ────────────── Модель сотрудника ──────────────
 class Employee(Base):
     __tablename__ = 'employees'
 
@@ -29,18 +32,20 @@ class Employee(Base):
     department = Column(String)
     telegram_id = Column(String, nullable=True)
 
+
+## ────────────── Логгер и подключение к БД ──────────────
 logger = logging.getLogger(__name__)
-
 logger.info("🔌 Подключение к PostgreSQL…")
-
 engine = create_async_engine(DATABASE_URL, echo=False)
 async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
+## ────────────── Инициализация таблицы сотрудников ──────────────
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         logging.getLogger(__name__).info("📦 Таблица employees создана или уже существует.")
 
+## ────────────── Сохранение сотрудников в БД ──────────────
 async def save_employees(employees_data: list[dict]):
     async with async_session() as session:
         # Получаем все существующие ID из базы

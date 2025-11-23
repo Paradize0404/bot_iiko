@@ -11,10 +11,13 @@ from services.db_queries import DBQueries
 from iiko.iiko_auth import get_auth_token, get_base_url
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
+
+## ────────────── Логгер и базовые модели ──────────────
 logger = logging.getLogger(__name__)
 Base = declarative_base()
 
 
+## ────────────── Модель шаблона приготовления ──────────────
 class PreparationTemplate(Base):
     __tablename__ = "preparation_templates"
     name: Mapped[str] = mapped_column(String, primary_key=True)
@@ -25,6 +28,7 @@ class PreparationTemplate(Base):
     items: Mapped[dict] = mapped_column(JSON)
 
 
+## ────────────── Модель склада ──────────────
 class Store(Base):
     __tablename__ = "stores"
     id = Column(String, primary_key=True)
@@ -33,6 +37,7 @@ class Store(Base):
     type = Column(String)
 
 
+## ────────────── Модель справочных данных ──────────────
 class ReferenceData(Base):
     __tablename__ = "reference_data"
     id = Column(String, primary_key=True)
@@ -41,9 +46,12 @@ class ReferenceData(Base):
     code = Column(String)
 
 
+
+## ────────────── Кэш складов ──────────────
 STORE_CACHE: dict[str, str] = {}
 
 
+## ────────────── Проверка/создание таблицы шаблонов ──────────────
 async def ensure_preparation_table_exists(engine: AsyncEngine) -> None:
     async with engine.begin() as conn:
         def _tables(sync_conn):
@@ -56,6 +64,7 @@ async def ensure_preparation_table_exists(engine: AsyncEngine) -> None:
             logger.info("✅ Таблица preparation_templates создана")
 
 
+## ────────────── Кэширование складов ──────────────
 async def preload_stores() -> None:
     global STORE_CACHE
     async with async_session() as s:
@@ -63,6 +72,7 @@ async def preload_stores() -> None:
         STORE_CACHE = {n.strip(): i for n, i in rows}
 
 
+## ────────────── Быстрое создание клавиатуры складов ──────────────
 def get_store_keyboard(variants: List[str], prefix: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(n, callback_data=f"{prefix}:{n}")] for n in variants])
 
@@ -71,6 +81,7 @@ def _get_store_kb(variants: List[str], prefix: str) -> InlineKeyboardMarkup:
     return get_store_keyboard(variants, prefix)
 
 
+## ────────────── Получение id склада по имени ──────────────
 async def get_store_id_by_name(name: str, store_map: dict) -> str | None:
     names = store_map.get(name.strip())
     if not names:
@@ -81,14 +92,17 @@ async def get_store_id_by_name(name: str, store_map: dict) -> str | None:
     return None
 
 
+## ────────────── Поиск номенклатуры ──────────────
 async def search_nomenclature(q: str, parents: list | None = None) -> list[dict]:
     return await DBQueries.search_nomenclature(q, parents=parents)
 
 
+## ────────────── Поиск поставщиков ──────────────
 async def search_suppliers(q: str) -> list[dict]:
     return await DBQueries.search_suppliers(q)
 
 
+## ────────────── Получение имени по типу и id ──────────────
 async def get_name(type_: str, id_: str) -> str:
     if not id_:
         return "—"
@@ -97,6 +111,7 @@ async def get_name(type_: str, id_: str) -> str:
         return r.scalar_one_or_none() or "—"
 
 
+## ────────────── Получение имени единицы измерения ──────────────
 async def get_unit_name(unit_id: str) -> str:
     if not unit_id:
         return "шт"
@@ -105,18 +120,21 @@ async def get_unit_name(unit_id: str) -> str:
         return r.scalar_one_or_none() or "шт"
 
 
+## ────────────── Получение списка шаблонов ──────────────
 async def list_templates() -> list[str]:
     async with async_session() as s:
         r = await s.execute(select(PreparationTemplate.name))
         return r.scalars().all()
 
 
+## ────────────── Получение шаблона по имени ──────────────
 async def get_template(name: str):
     async with async_session() as s:
         r = await s.execute(select(PreparationTemplate).where(PreparationTemplate.name == name))
         return r.scalar_one_or_none()
 
 
+## ────────────── Формирование XML для акта приготовления ──────────────
 def build_production_xml(template: dict) -> str:
     from datetime import datetime
     now = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
@@ -125,6 +143,7 @@ def build_production_xml(template: dict) -> str:
     return f"""<?xml version='1.0' encoding='UTF-8'?>\n<document>\n    <storeFrom>{template['from_store_id']}</storeFrom>\n    <storeTo>{template['to_store_id']}</storeTo>\n    <dateIncoming>{now}</dateIncoming>\n    <documentNumber>{num}</documentNumber>\n    <conception>{os.getenv('PIZZAYOLO_CONCEPTION_ID','cd6b8810-0f57-4e1e-82a4-3f60fb2ded7a')}</conception>\n    <comment>Создано через Telegram-бота</comment>\n    <items>{items}\n    </items>\n</document>"""
 
 
+## ────────────── Формирование XML для расходной накладной ──────────────
 def build_invoice_xml(template: dict) -> str:
     from datetime import datetime
     now = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
@@ -133,6 +152,7 @@ def build_invoice_xml(template: dict) -> str:
     return f"""<?xml version='1.0' encoding='UTF-8'?>\n<document>\n    <documentNumber>{num}</documentNumber>\n    <dateIncoming>{now}</dateIncoming>\n    <useDefaultDocumentTime>true</useDefaultDocumentTime>\n    <revenueAccountCode>4.08</revenueAccountCode>\n    <counteragentId>{template['supplier_id']}</counteragentId>\n    <defaultStoreId>{template['to_store_id']}</defaultStoreId>\n    <conceptionId>{os.getenv('PIZZAYOLO_CONCEPTION_ID','cd6b8810-0f57-4e1e-82a4-3f60fb2ded7a')}</conceptionId>\n    <comment>Создано автоматически на основе акта приготовления</comment>\n    <items>{items}\n    </items>\n</document>"""
 
 
+## ────────────── Отправка XML в iiko ──────────────
 async def post_xml(path: str, xml: str) -> Tuple[bool, str]:
     DRY_RUN = os.getenv("DRY_RUN", "false").lower() in ("1", "true", "yes")
     if DRY_RUN:
@@ -160,15 +180,19 @@ async def post_xml(path: str, xml: str) -> Tuple[bool, str]:
 # Compatibility wrappers for existing handlers
 from config import STORE_NAME_MAP
 
+## ────────────── Быстрое создание клавиатуры (совместимость) ──────────────
 def _kbd(variants: List[str], prefix: str) -> InlineKeyboardMarkup:
     return get_store_keyboard(variants, prefix)
 
+## ────────────── Получение id склада (совместимость) ──────────────
 async def _get_store_id(name: str) -> str | None:
     return await get_store_id_by_name(name, STORE_NAME_MAP)
 
 # Alias for existing handlers
+## ────────────── Получение имени единицы измерения (совместимость) ──────────────
 async def get_unit_name_by_id(unit_id: str) -> str:
     return await get_unit_name(unit_id)
 
+## ────────────── Клавиатура выбора шаблона ──────────────
 def get_template_keyboard(templates: List[str]) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(t, callback_data=f"use_template:{t}")] for t in templates])

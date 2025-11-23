@@ -13,9 +13,12 @@ from datetime import datetime
 
 
 from keyboards.inline_calendar import build_calendar, parse_callback_data
+
+## ────────────── Логгер и роутер для aiogram ──────────────
 router = Router()
 
 
+## ────────────── Состояния FSM для отчёта по продажам ──────────────
 class SalesReportStates(StatesGroup):
     selecting_start = State()
     selecting_end = State()
@@ -24,6 +27,7 @@ class SalesReportStates(StatesGroup):
 logger = logging.getLogger(__name__)
 
 
+## ────────────── Вспомогательные функции для парсинга отчёта ──────────────
 def _auto_cast(text):
     if text is None:
         return None
@@ -44,6 +48,7 @@ def parse_xml_report(xml: str):
     return rows
 
 
+## ────────────── Получение OLAP-отчёта из iiko ──────────────
 async def get_olap_report(
         report="SALES",
         date_from=None,
@@ -83,6 +88,7 @@ async def get_olap_report(
             raise RuntimeError("Неизвестный формат ответа")
 
 
+## ────────────── Фильтрация удалённых позиций ──────────────
 def get_not_deleted(df):
     """Возвращает DataFrame только с не удалёнными позициями"""
     return df[
@@ -91,6 +97,7 @@ def get_not_deleted(df):
     ].copy()
 
 
+## ────────────── Формирование основного отчёта ──────────────
 def get_main_report(filtered_df) -> str:
     # ensure numeric columns are properly typed
     filtered_df = filtered_df.copy()
@@ -137,6 +144,7 @@ def get_main_report(filtered_df) -> str:
     return text
 
 
+## ────────────── Формирование отчёта по категориям ──────────────
 def get_cost_and_revenue_by_category(filtered_df) -> str:
     df = filtered_df[~filtered_df["DishCategory"].isin(["Персонал", "Модификаторы"])].copy()
     # ensure numeric columns are properly typed (XML parser may return strings)
@@ -173,11 +181,15 @@ def get_cost_and_revenue_by_category(filtered_df) -> str:
     return "\n".join(lines).replace(',', ' ')
 
 
-# ========== aiogram ROUTES ==========
+
+## ────────────── Маршруты aiogram для отчёта ──────────────
 
 # Кнопка: 📈 Выручка / Себестоимость
 @router.message(F.text == "📈 Выручка / Себестоимость")
 async def start_main_report(message: types.Message, state: FSMContext):
+    """
+    Старт отчёта по выручке и себестоимости
+    """
     await message.answer("Выберите дату *начала* периода:", reply_markup=build_calendar(
         year=datetime.now().year, month=datetime.now().month, calendar_id="sales_main_start", mode="single"
     ))
@@ -186,6 +198,9 @@ async def start_main_report(message: types.Message, state: FSMContext):
 
 @router.message(F.text == "📑 Себестоимость по категориям")
 async def start_category_report(message: types.Message, state: FSMContext):
+    """
+    Старт отчёта по категориям
+    """
     await message.answer("Выберите дату *начала* периода:", reply_markup=build_calendar(
         year=datetime.now().year, month=datetime.now().month, calendar_id="sales_cat_start", mode="single"
     ))
@@ -194,6 +209,9 @@ async def start_category_report(message: types.Message, state: FSMContext):
 
 @router.callback_query(lambda c: c.data.startswith("CAL:"))
 async def calendar_handler(call: types.CallbackQuery, state: FSMContext):
+    """
+    Обработка inline-календаря для выбора дат отчёта
+    """
     data = parse_callback_data(call.data)
     if not data or data["action"] == "IGNORE":
         await call.answer()
@@ -264,7 +282,8 @@ async def calendar_handler(call: types.CallbackQuery, state: FSMContext):
             await call.answer()
             return
 
-# ========== CONSOLE MAIN ==========
+
+## ────────────── Точка входа для консольного запуска ──────────────
 async def main():
     logger.info("Получаем OLAP-отчет по продажам")
     raw = await get_olap_report(

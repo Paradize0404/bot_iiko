@@ -1,6 +1,8 @@
-"""Utility helpers for cleaner Telegram (AIogram) interactions.
+## ────────────── Вспомогательные функции для работы с Telegram ──────────────
+"""
+Utility helpers for cleaner Telegram (AIogram) interactions.
 
-The aim is to keep chat noise to a minimum by *editing* the bot’s last
+The aim is to keep chat noise to a minimum by *editing* the bot's last
 message instead of sending a new one, and by *deleting* the triggering
 user message when appropriate.
 """

@@ -1,8 +1,9 @@
+
+# ────────────── Импорт библиотек и общих функций ──────────────
 import logging
 from aiogram import Router, F, types
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
-
 from states import RegisterStates
 from keyboards.main_keyboard import main_menu_keyboard
 from services.employees import fetch_employees
@@ -15,19 +16,18 @@ from db.stores_db import (
     fetch_stores,
     sync_stores,
 )
-
 from db.sprav_db import sync_all_references
 from db.supplier_db import sync_suppliers
 from db.accounts_data import sync_accounts
 from services.db_queries import DBQueries
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-
 logging.basicConfig(level=logging.INFO)
 
+# ────────────── Логгер и роутер для aiogram ──────────────
 router = Router()
 
 
-# ──────────────────────────── Команды проекта ───────────────────────────
+## ────────────── Inline-меню и обработчики команд администратора ──────────────
 @router.message(F.text == "Команды")
 async def show_commands_list(message: types.Message):
     """Показывает список всех доступных команд администратора"""
@@ -47,6 +47,7 @@ async def show_commands_list(message: types.Message):
 
 @router.callback_query(F.data == "cmd:load_staff")
 async def callback_load_staff(callback: types.CallbackQuery):
+    """Загрузка сотрудников"""
     await callback.answer()
     employees = await fetch_employees()
     await callback.message.edit_text(f"✅ Загружено сотрудников: {len(employees)}")
@@ -54,6 +55,7 @@ async def callback_load_staff(callback: types.CallbackQuery):
 
 @router.callback_query(F.data == "cmd:load_products")
 async def callback_load_products(callback: types.CallbackQuery):
+    """Загрузка номенклатуры и балансов"""
     await callback.answer()
     try:
         await init_db()
@@ -67,6 +69,7 @@ async def callback_load_products(callback: types.CallbackQuery):
 
 @router.callback_query(F.data == "cmd:load_groups")
 async def callback_load_groups(callback: types.CallbackQuery):
+    """Загрузка групп номенклатуры"""
     await callback.answer()
     try:
         await init_groups_table()
@@ -79,6 +82,7 @@ async def callback_load_groups(callback: types.CallbackQuery):
 
 @router.callback_query(F.data == "cmd:load_stores")
 async def callback_load_stores(callback: types.CallbackQuery):
+    """Загрузка складов"""
     await callback.answer()
     try:
         await init_stores_table()
@@ -91,6 +95,7 @@ async def callback_load_stores(callback: types.CallbackQuery):
 
 @router.callback_query(F.data == "cmd:load_references")
 async def callback_load_references(callback: types.CallbackQuery):
+    """Загрузка справочников"""
     await callback.answer()
     try:
         await sync_all_references()
@@ -101,6 +106,7 @@ async def callback_load_references(callback: types.CallbackQuery):
 
 @router.callback_query(F.data == "cmd:load_suppliers")
 async def callback_load_suppliers(callback: types.CallbackQuery):
+    """Загрузка поставщиков"""
     await callback.answer()
     try:
         await sync_suppliers()
@@ -111,6 +117,7 @@ async def callback_load_suppliers(callback: types.CallbackQuery):
 
 @router.callback_query(F.data == "cmd:load_accounts")
 async def callback_load_accounts(callback: types.CallbackQuery):
+    """Загрузка счетов"""
     await callback.answer()
     try:
         await sync_accounts()

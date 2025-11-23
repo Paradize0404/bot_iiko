@@ -1,3 +1,5 @@
+
+## ────────────── Импорт библиотек и общих функций ──────────────
 from aiogram import Bot, Router, F, types
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
@@ -7,33 +9,55 @@ from utils.telegram_helpers import edit_or_send
 from config import PARENT_FILTERS, STORE_NAME_MAP
 from services.db_queries import DBQueries
 from handlers.common import (
-    PreparationTemplate,
-    ensure_preparation_table_exists,
-    preload_stores,
-    _kbd,
-    _get_store_id,
-    search_nomenclature,
-    search_suppliers,
-    STORE_CACHE,
+    PreparationTemplate,              # Модель шаблона приготовления
+    ensure_preparation_table_exists,  # Проверка/создание таблицы шаблонов
+    preload_stores,                   # Кэширование складов
+    _kbd,                             # Быстрое создание клавиатуры складов
+    _get_store_id,                    # Получение id склада по имени
+    search_nomenclature,              # Поиск номенклатуры
+    search_suppliers,                 # Поиск поставщиков
+    STORE_CACHE,                      # Кэш складов
 )
 from db.employees_db import async_session
 import logging, pprint
 
+
+## ────────────── Логгер и роутер для aiogram ──────────────
 logger = logging.getLogger(__name__)
 router = Router()
 
 
+
+## ────────────── Состояния FSM для создания шаблона ──────────────
 class TemplateStates(StatesGroup):
-    Name = State()
-    FromStore = State()
-    ToStore = State()
-    DispatchChoice = State()
-    SelectSupplier = State()
-    AddItems = State()
-    SetPrice = State()
+    """
+    Состояния FSM для пошагового создания шаблона:
+    - Name: ввод названия
+    - FromStore: выбор склада-отправителя
+    - ToStore: выбор склада-получателя
+    - DispatchChoice: выбор, делать ли на отправку
+    - SelectSupplier: выбор поставщика
+    - AddItems: добавление позиций
+    - SetPrice: ввод цены
+    """
+    Name = State()            # Ввод названия шаблона
+    FromStore = State()       # Выбор склада-отправителя
+    ToStore = State()         # Выбор склада-получателя
+    DispatchChoice = State()  # Выбор: делать ли на отправку
+    SelectSupplier = State()  # Выбор поставщика
+    AddItems = State()        # Добавление позиций
+    SetPrice = State()        # Ввод цены отгрузки
 
 
+
+## ────────────── Вспомогательная функция: отрисовка статуса шаблона ──────────────
 async def render_template_status(state: FSMContext, bot: Bot, chat_id: int):
+    """
+    Обновляет сообщение со статусом текущего шаблона (название, поставщик, позиции)
+    """
+    """
+    Обновляет сообщение со статусом текущего шаблона (название, поставщик, позиции)
+    """
     d = await state.get_data()
     items = d.get("template_items", [])
     supplier = d.get("supplier_name", "—")
@@ -57,8 +81,16 @@ async def render_template_status(state: FSMContext, bot: Bot, chat_id: int):
         logger.exception("Ошибка обновления статуса шаблона")
 
 
+
+## ────────────── Старт создания шаблона ──────────────
 @router.callback_query(F.data == "prep:create_template")
 async def start_template_creation(c: types.CallbackQuery, state: FSMContext):
+    """
+    Начало процесса создания шаблона: очищает state, запрашивает название
+    """
+    """
+    Начало процесса создания шаблона: очищает state, запрашивает название
+    """
     await state.clear()
     await state.update_data(template_items=[])
     await state.set_state(TemplateStates.Name)
@@ -68,8 +100,13 @@ async def start_template_creation(c: types.CallbackQuery, state: FSMContext):
     await state.update_data(form_message_id=msg.message_id, status_message_id=status.message_id)
 
 
+
+## ────────────── Ввод названия шаблона ──────────────
 @router.message(TemplateStates.Name)
 async def set_template_name(m: types.Message, state: FSMContext):
+    """
+    Обработка ввода названия шаблона
+    """
     await m.delete()
     await state.update_data(template_name=m.text)
     await m.bot.edit_message_text(
@@ -81,8 +118,13 @@ async def set_template_name(m: types.Message, state: FSMContext):
     await render_template_status(state, m.bot, m.chat.id)
 
 
+
+## ────────────── Выбор склада-отправителя ──────────────
 @router.callback_query(F.data.startswith("fromstore:"))
 async def pick_from_store(c: types.CallbackQuery, state: FSMContext):
+    """
+    Обработка выбора склада-отправителя
+    """
     name = c.data.split(":", 1)[1]
     sid = await _get_store_id(name)
     if not sid:
@@ -93,8 +135,13 @@ async def pick_from_store(c: types.CallbackQuery, state: FSMContext):
     await render_template_status(state, c.bot, c.message.chat.id)
 
 
+
+## ────────────── Выбор склада-получателя ──────────────
 @router.callback_query(F.data.startswith("tostore:"))
 async def pick_to_store(c: types.CallbackQuery, state: FSMContext):
+    """
+    Обработка выбора склада-получателя
+    """
     name = c.data.split(":", 1)[1]
     sid = await _get_store_id(name)
     if not sid:
@@ -112,8 +159,13 @@ async def pick_to_store(c: types.CallbackQuery, state: FSMContext):
     await render_template_status(state, c.bot, c.message.chat.id)
 
 
+
+## ────────────── Выбор: делать ли на отправку ──────────────
 @router.callback_query(F.data.startswith("dispatch:"))
 async def dispatch_choice(c: types.CallbackQuery, state: FSMContext):
+    """
+    Обработка выбора: делать ли на отправку
+    """
     dispatch = c.data.split(":", 1)[1] == "yes"
     await state.update_data(dispatch=dispatch)
     if dispatch:
@@ -125,8 +177,13 @@ async def dispatch_choice(c: types.CallbackQuery, state: FSMContext):
     await c.answer()
 
 
+
+## ────────────── Поиск и выбор поставщика ──────────────
 @router.message(TemplateStates.SelectSupplier)
 async def supplier_search(m: types.Message, state: FSMContext):
+    """
+    Поиск и выбор поставщика
+    """
     q = m.text.strip()
     await m.delete()
     res = await search_suppliers(q)
@@ -139,8 +196,13 @@ async def supplier_search(m: types.Message, state: FSMContext):
     )
 
 
+
+## ────────────── Подтверждение выбора поставщика ──────────────
 @router.callback_query(F.data.startswith("selectsupplier:"))
 async def select_supplier(c: types.CallbackQuery, state: FSMContext):
+    """
+    Подтверждение выбора поставщика
+    """
     sid = c.data.split(":", 1)[1]
     data = await state.get_data()
     sup = data.get("supplier_cache", {}).get(sid)
@@ -153,8 +215,13 @@ async def select_supplier(c: types.CallbackQuery, state: FSMContext):
     await render_template_status(state, c.bot, c.message.chat.id)
 
 
+
+## ────────────── Поиск и добавление позиций ──────────────
 @router.message(TemplateStates.AddItems)
 async def nomen_search(m: types.Message, state: FSMContext):
+    """
+    Поиск и добавление позиций
+    """
     q = m.text.strip()
     await m.delete()
     res = await search_nomenclature(q)
@@ -167,8 +234,13 @@ async def nomen_search(m: types.Message, state: FSMContext):
     )
 
 
+
+## ────────────── Подтверждение добавления позиции ──────────────
 @router.callback_query(F.data.startswith("additem:"))
 async def add_item(c: types.CallbackQuery, state: FSMContext):
+    """
+    Подтверждение добавления позиции
+    """
     item_id = c.data.split(":", 1)[1]
     data = await state.get_data()
     item = data.get("nomenclature_cache", {}).get(item_id)
@@ -193,8 +265,13 @@ async def add_item(c: types.CallbackQuery, state: FSMContext):
     await render_template_status(state, c.bot, c.message.chat.id)
 
 
+
+## ────────────── Ввод цены отгрузки ──────────────
 @router.message(TemplateStates.SetPrice)
 async def set_price(m: types.Message, state: FSMContext):
+    """
+    Ввод цены отгрузки для позиции
+    """
     try:
         price = float(m.text.replace(",", "."))
     except ValueError:
@@ -223,8 +300,16 @@ async def set_price(m: types.Message, state: FSMContext):
     await render_template_status(state, m.bot, m.chat.id)
 
 
+
+## ────────────── Завершение создания шаблона ──────────────
 @router.callback_query(F.data == "more:done")
 async def finish_template(c: types.CallbackQuery, state: FSMContext):
+    """
+    Сохраняет шаблон в базу данных, завершает процесс
+    """
+    """
+    Сохраняет шаблон в базу данных, завершает процесс
+    """
     data = await state.get_data()
     template = {k: data.get(k) for k in ("template_name", "from_store_id", "to_store_id", "supplier_id", "supplier_name")}
     template["items"] = data.get("template_items", [])

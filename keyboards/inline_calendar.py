@@ -1,9 +1,11 @@
+## ────────────── Импорт библиотек для inline-календаря ──────────────
 import calendar
 from datetime import datetime
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 
 from datetime import datetime
 
+## ────────────── Функция построения inline-календаря ──────────────
 def build_calendar(year: int, month: int, calendar_id: str = "default", mode: str = "single") -> InlineKeyboardMarkup:
     """
     Собирает календарь с возможностью выбрать дату или период.
@@ -54,6 +56,7 @@ def build_calendar(year: int, month: int, calendar_id: str = "default", mode: st
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
+## ────────────── Функция парсинга callback данных ──────────────
 def parse_callback_data(callback_data: str):
     # Пример: CAL:salary:DATE:2025-06-11:range
     parts = callback_data.split(":")

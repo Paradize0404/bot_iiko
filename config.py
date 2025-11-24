@@ -7,11 +7,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
 # Configuration values. Avoid side-effects on import — create runtime resources lazily.
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 

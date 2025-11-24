@@ -126,6 +126,58 @@ async def get_position_history_for_period(employee_id: str, from_date: date, to_
         return periods
 
 
+async def get_position_history_for_multiple_employees(employee_ids: list, from_date: date, to_date: date) -> dict:
+    """
+    Получает историю должностей для нескольких сотрудников одним запросом (оптимизация)
+    
+    Args:
+        employee_ids: Список ID сотрудников из iiko
+        from_date: Начало периода
+        to_date: Конец периода
+    
+    Returns:
+        Словарь {employee_id: [список периодов]}
+    """
+    if not employee_ids:
+        return {}
+    
+    async with async_session() as session:
+        result = await session.execute(
+            select(EmployeePositionHistory)
+            .where(
+                and_(
+                    EmployeePositionHistory.employee_id.in_(employee_ids),
+                    # Запись пересекается с запрашиваемым периодом
+                    EmployeePositionHistory.valid_from <= to_date,
+                    or_(
+                        EmployeePositionHistory.valid_to >= from_date,
+                        EmployeePositionHistory.valid_to.is_(None)
+                    )
+                )
+            )
+            .order_by(EmployeePositionHistory.employee_id, EmployeePositionHistory.valid_from)
+        )
+        records = result.scalars().all()
+        
+        # Группируем по сотрудникам
+        history_by_employee = {}
+        for record in records:
+            if record.employee_id not in history_by_employee:
+                history_by_employee[record.employee_id] = []
+            
+            # Обрезаем период по границам запроса
+            period_start = max(record.valid_from, from_date)
+            period_end = min(record.valid_to or to_date, to_date)
+            
+            history_by_employee[record.employee_id].append({
+                'position_name': record.position_name,
+                'valid_from': period_start,
+                'valid_to': period_end
+            })
+        
+        return history_by_employee
+
+
 ## ────────────── Добавление/обновление должности ──────────────
 async def set_employee_position(employee_id: str, employee_name: str, position_name: str, 
                                 effective_date: date = None) -> None:

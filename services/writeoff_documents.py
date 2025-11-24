@@ -111,6 +111,12 @@ async def get_writeoff_documents(from_date: str, to_date: str) -> list:
                 conception_code = doc_node.findtext('conceptionCode', '')
                 comment = doc_node.findtext('comment', '')
                 
+                # ВАЖНО: Проверяем что накладная проведена (processed)
+                status = doc_node.findtext('status', '')
+                if status != 'PROCESSED':
+                    logger.debug(f"Пропускаем накладную {doc_number} со статусом {status}")
+                    continue
+                
                 # Парсим дату
                 if date_str:
                     try:
@@ -129,7 +135,8 @@ async def get_writeoff_documents(from_date: str, to_date: str) -> list:
                         item_sum_str = item.findtext('sum', '0')
                         try:
                             total_sum += float(item_sum_str)
-                        except:
+                        except (ValueError, TypeError) as e:
+                            logger.debug(f"Ошибка парсинга суммы '{item_sum_str}': {e}")
                             pass
                 
                 if doc_id and doc_date:
@@ -146,7 +153,7 @@ async def get_writeoff_documents(from_date: str, to_date: str) -> list:
                 logger.warning(f"Ошибка обработки расходной накладной: {e}")
                 continue
         
-        logger.info(f"✅ Загружено {len(documents)} расходных накладных на общую сумму {sum(d['sum'] for d in documents):.2f}₽")
+        logger.info(f"✅ Загружено {len(documents)} ПРОВЕДЕННЫХ расходных накладных на общую сумму {sum(d['sum'] for d in documents):.2f}₽")
         return documents
     
     except Exception as e:

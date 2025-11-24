@@ -11,27 +11,34 @@ logger = logging.getLogger(__name__)
 
 ## ────────────── Получение отчета по ID (сохраненная конфигурация) ──────────────
 async def get_preset_report_by_id(preset_id: str, from_date: str, to_date: str) -> list:
-    """Получает данные из сохраненного отчета iiko по его ID"""
+    """
+    Получает данные из сохраненного отчета iiko по его ID
+    
+    Args:
+        preset_id: ID сохранённого отчёта
+        from_date: дата начала в формате YYYY-MM-DD
+        to_date: дата конца в формате YYYY-MM-DD
+    """
     token = await get_auth_token()
     base_url = get_base_url()
     
-    # Конвертируем формат даты из 2025-11-01 в 01.11.2025
+    # Проверяем формат входных дат (должен быть YYYY-MM-DD)
     try:
-        from_dt = datetime.strptime(from_date, "%Y-%m-%d")
-        to_dt = datetime.strptime(to_date, "%Y-%m-%d")
-        from_date_iiko = from_dt.strftime("%d.%m.%Y")
-        to_date_iiko = to_dt.strftime("%d.%m.%Y")
-    except:
-        from_date_iiko = from_date
-        to_date_iiko = to_date
+        datetime.strptime(from_date, "%Y-%m-%d")
+        datetime.strptime(to_date, "%Y-%m-%d")
+    except (ValueError, TypeError) as e:
+        logger.error(f"❌ Неправильный формат дат {from_date} - {to_date}, ожидается YYYY-MM-DD: {e}")
+        return []
     
     url = f"{base_url}/resto/api/v2/reports/olap/byPresetId/{preset_id}"
     
     params = {
         "key": token,
-        "from": from_date_iiko,
-        "to": to_date_iiko,
+        "from": from_date,  # Передаём YYYY-MM-DD напрямую
+        "to": to_date,
     }
+    
+    logger.debug(f"📊 Запрос preset-отчёта {preset_id}: {from_date} - {to_date}")
     
     try:
         async with httpx.AsyncClient(verify=False, timeout=60.0) as client:

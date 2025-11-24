@@ -11,7 +11,7 @@ from decimal import Decimal
 from aiogram.fsm.state import StatesGroup, State
 from datetime import datetime
 
-
+from services.revenue_report import get_revenue_report, calculate_revenue, format_revenue_report, calculate_salary_by_departments
 from keyboards.inline_calendar import build_calendar, parse_callback_data
 
 ## ────────────── Логгер и роутер для aiogram ──────────────
@@ -241,45 +241,76 @@ async def calendar_handler(call: types.CallbackQuery, state: FSMContext):
 
     # Если выбран день
     if data["action"] == "DATE":
-        selected_date = data["date"].strftime("%d.%m.%Y")
+        # Сохраняем в формате YYYY-MM-DD для API
+        selected_date_api = data["date"].strftime("%Y-%m-%d")
+        # Форматируем для отображения пользователю
+        selected_date_display = data["date"].strftime("%d.%m.%Y")
         user_data = await state.get_data()
         report_type = user_data.get("report_type")
 
         if cur_state == SalesReportStates.selecting_start.state:
-            await state.update_data(date_start=selected_date)
+            await state.update_data(date_start=selected_date_api)
             await state.set_state(SalesReportStates.selecting_end)
-            await call.message.edit_text(f"Дата начала: {selected_date}\nТеперь выберите дату *конца* периода:", reply_markup=build_calendar(
+            await call.message.edit_text(f"Дата начала: {selected_date_display}\nТеперь выберите дату *конца* периода:", reply_markup=build_calendar(
                 year=data["date"].year, month=data["date"].month, calendar_id="sales_end", mode="single"
             ))
             await call.answer()
             return
 
         elif cur_state == SalesReportStates.selecting_end.state:
-            await state.update_data(date_end=selected_date)
+            await state.update_data(date_end=selected_date_api)
             data_ctx = await state.get_data()
             await state.clear()
+            
+            # Сразу отвечаем на callback, чтобы избежать timeout
+            await call.answer()
 
             # Запуск генерации отчёта
             msg = await call.message.edit_text("⏳ Формируем отчёт... Пожалуйста, подождите.")
 
-            raw = await get_olap_report(
-                date_from=data_ctx["date_start"],
-                date_to=data_ctx["date_end"],
-                group_rows=[
-                    "OpenTime", "CookingPlace",
-                    "DeletedWithWriteoff", "OrderDeleted", "DishCategory", "PayTypes.Combo", "OrderNum"
-                ],
-                agr_fields=["DishDiscountSumInt", "ProductCostBase.ProductCost", "DishSumInt"],
-            )
-            df = pd.DataFrame(raw)
-            filtered_df = get_not_deleted(df)
             if data_ctx["report_type"] == "main":
-                text = get_main_report(filtered_df)
+                # Отчет по выручке (только OLAP, без зарплат и расходных)
+                try:
+                    # Получаем данные отчета
+                    raw_data = await get_revenue_report(
+                        date_from=data_ctx["date_start"],
+                        date_to=data_ctx["date_end"]
+                    )
+                    
+                    # Рассчитываем выручку (БЕЗ расходных накладных и ФОТ)
+                    revenue_data = await calculate_revenue(
+                        raw_data,
+                        data_ctx["date_start"],
+                        data_ctx["date_end"]
+                    )
+                    
+                    # Формируем простой отчет только по выручке
+                    text = format_revenue_report(
+                        revenue_data,
+                        data_ctx["date_start"],
+                        data_ctx["date_end"],
+                        dept_salaries=None  # Отключаем ФОТ
+                    )
+                    await msg.edit_text(text, parse_mode="Markdown")
+                except Exception as e:
+                    logger.exception(f"Ошибка при формировании отчета: {e}")
+                    await msg.edit_text(f"❌ Ошибка при формировании отчета: {str(e)}")
             else:
+                # Старый отчет по категориям
+                raw = await get_olap_report(
+                    date_from=data_ctx["date_start"],
+                    date_to=data_ctx["date_end"],
+                    group_rows=[
+                        "OpenTime", "CookingPlace",
+                        "DeletedWithWriteoff", "OrderDeleted", "DishCategory", "PayTypes.Combo", "OrderNum"
+                    ],
+                    agr_fields=["DishDiscountSumInt", "ProductCostBase.ProductCost", "DishSumInt"],
+                )
+                df = pd.DataFrame(raw)
+                filtered_df = get_not_deleted(df)
                 text = get_cost_and_revenue_by_category(filtered_df)
-
-            await msg.edit_text(text, parse_mode="Markdown")
-            await call.answer()
+                await msg.edit_text(text, parse_mode="Markdown")
+            
             return
 
 

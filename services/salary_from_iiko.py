@@ -7,12 +7,13 @@ import httpx
 import xml.etree.ElementTree as ET
 from datetime import datetime, date as date_type
 import logging
+import asyncio
 from iiko.iiko_auth import get_auth_token, get_base_url
 from services.cash_shift_report import get_cash_shifts_with_details
 from sqlalchemy import select
 from db.position_commission_db import async_session, PositionCommission
 from services.writeoff_documents import get_writeoff_documents, calculate_writeoff_sum_for_employee
-from db.employee_position_history_db import get_position_history_for_period, update_position_from_iiko
+from db.employee_position_history_db import get_position_history_for_period, update_position_from_iiko, get_position_history_for_multiple_employees
 
 logger = logging.getLogger(__name__)
 # Временно повышаем уровень для отладки
@@ -178,60 +179,65 @@ async def fetch_salary_from_iiko(from_date: str, to_date: str) -> dict:
         token = await get_auth_token()
         base_url = get_base_url()
         
-        # 1. Получаем attendance с деталями оплаты
-        logger.info("📥 Получение attendance...")
-        attendance_url = f"{base_url}/resto/api/employees/attendance/"
-        async with httpx.AsyncClient(verify=False, timeout=30.0) as client:
-            response = await client.get(
-                attendance_url,
-                headers={"Cookie": f"key={token}"},
-                params={
-                    "from": from_date,
-                    "to": to_date,
-                    "withPaymentDetails": "true"
-                }
-            )
-        response.raise_for_status()
+        # ⚡ ПАРАЛЛЕЛЬНЫЕ ЗАПРОСЫ к iiko API (экономия времени!)
+        logger.info("📥 Параллельное получение данных из iiko API...")
         
-        # Парсим XML
-        tree = ET.fromstring(response.text)
+        async def fetch_attendance():
+            attendance_url = f"{base_url}/resto/api/employees/attendance/"
+            async with httpx.AsyncClient(verify=False, timeout=30.0) as client:
+                response = await client.get(
+                    attendance_url,
+                    headers={"Cookie": f"key={token}"},
+                    params={
+                        "from": from_date,
+                        "to": to_date,
+                        "withPaymentDetails": "true"
+                    }
+                )
+            response.raise_for_status()
+            return response.text
+        
+        async def fetch_employees():
+            employees_url = f"{base_url}/resto/api/employees"
+            async with httpx.AsyncClient(verify=False, timeout=30.0) as client:
+                emp_response = await client.get(
+                    employees_url,
+                    headers={"Cookie": f"key={token}"},
+                    params={"includeDeleted": "false"}
+                )
+                if emp_response.status_code != 200:
+                    emp_response = await client.get(
+                        employees_url,
+                        headers={"Cookie": f"key={token}"}
+                    )
+            emp_response.raise_for_status()
+            return emp_response.text
+        
+        async def fetch_roles():
+            roles_url = f"{base_url}/resto/api/employees/roles"
+            async with httpx.AsyncClient(verify=False, timeout=30.0) as client:
+                roles_response = await client.get(
+                    roles_url,
+                    headers={"Cookie": f"key={token}"}
+                )
+            roles_response.raise_for_status()
+            return roles_response.text
+        
+        # Запускаем все запросы параллельно
+        attendance_xml, employees_xml, roles_xml = await asyncio.gather(
+            fetch_attendance(),
+            fetch_employees(),
+            fetch_roles()
+        )
+        
+        # Парсим результаты
+        tree = ET.fromstring(attendance_xml)
         attendances = tree.findall(".//attendance")
         logger.info(f"✅ Получено {len(attendances)} записей attendance")
         
-        # 2. Получаем информацию о сотрудниках
-        logger.info("📥 Получение списка сотрудников из iiko...")
-        employees_url = f"{base_url}/resto/api/employees"
+        emp_tree = ET.fromstring(employees_xml)
         
-        # Пробуем с разными параметрами
-        async with httpx.AsyncClient(verify=False, timeout=30.0) as client:
-            # Сначала пробуем с includeDeleted
-            emp_response = await client.get(
-                employees_url,
-                headers={"Cookie": f"key={token}"},
-                params={"includeDeleted": "false"}
-            )
-            
-            if emp_response.status_code != 200:
-                # Если не сработало, пробуем без параметров
-                emp_response = await client.get(
-                    employees_url,
-                    headers={"Cookie": f"key={token}"}
-                )
-        
-        emp_response.raise_for_status()
-        emp_tree = ET.fromstring(emp_response.text)
-        
-        # 3. Получаем справочник должностей (код → название)
-        logger.info("📥 Получение справочника должностей...")
-        roles_url = f"{base_url}/resto/api/employees/roles"
-        async with httpx.AsyncClient(verify=False, timeout=30.0) as client:
-            roles_response = await client.get(
-                roles_url,
-                headers={"Cookie": f"key={token}"}
-            )
-        
-        roles_response.raise_for_status()
-        roles_tree = ET.fromstring(roles_response.text)
+        roles_tree = ET.fromstring(roles_xml)
         
         # Создаем словарь {код: полное_название}
         roles_dict = {}
@@ -243,7 +249,7 @@ async def fetch_salary_from_iiko(from_date: str, to_date: str) -> dict:
         
         logger.info(f"✅ Загружено {len(roles_dict)} должностей")
         
-        # 4. Загружаем настройки комиссии из БД по должностям
+        # Загружаем настройки комиссии из БД по должностям
         logger.info("📥 Загрузка настроек комиссии из БД...")
         position_settings = {}
         async with async_session() as session:
@@ -305,25 +311,34 @@ async def fetch_salary_from_iiko(from_date: str, to_date: str) -> dict:
         
         logger.info(f"✅ Загружено {len(employees_info)} сотрудников")
         
-        # 6. Получаем кассовые смены с выручкой (для комиссии от продаж)
-        logger.info("📥 Получение кассовых смен...")
-        try:
-            cash_shifts = await get_cash_shifts_with_details(from_date, to_date)
-            logger.info(f"✅ Загружено {len(cash_shifts)} кассовых смен")
-        except Exception as e:
-            logger.warning(f"⚠️ Не удалось получить кассовые смены: {e}")
-            cash_shifts = []
+        # ⚡ Параллельно получаем кассовые смены и расходные накладные
+        logger.info("📥 Параллельное получение смен и накладных...")
         
-        # 7. Получаем расходные накладные (для комиссии от расходных)
-        logger.info("📥 Получение расходных накладных...")
-        try:
-            writeoff_docs = await get_writeoff_documents(from_date, to_date)
-            logger.info(f"✅ Загружено {len(writeoff_docs)} расходных накладных")
-        except Exception as e:
-            logger.warning(f"⚠️ Не удалось получить расходные накладные: {e}")
-            writeoff_docs = []
+        async def fetch_cash_shifts():
+            try:
+                shifts = await get_cash_shifts_with_details(from_date, to_date)
+                logger.info(f"✅ Загружено {len(shifts)} кассовых смен")
+                return shifts
+            except Exception as e:
+                logger.warning(f"⚠️ Не удалось получить кассовые смены: {e}")
+                return []
         
-        # 8. Обрабатываем attendance данные с учетом истории должностей
+        async def fetch_writeoff_docs():
+            try:
+                docs = await get_writeoff_documents(from_date, to_date)
+                logger.info(f"✅ Загружено {len(docs)} расходных накладных")
+                return docs
+            except Exception as e:
+                logger.warning(f"⚠️ Не удалось получить расходные накладные: {e}")
+                return []
+        
+        # Параллельное выполнение
+        cash_shifts, writeoff_docs = await asyncio.gather(
+            fetch_cash_shifts(),
+            fetch_writeoff_docs()
+        )
+        
+        # Обрабатываем attendance данные с учетом истории должностей
         salary_data = {}
         attendance_by_employee = {}  # Для расчета выручки/расходных
         attendance_with_dates = {}  # Храним attendance с датами для разделения по периодам
@@ -384,6 +399,16 @@ async def fetch_salary_from_iiko(from_date: str, to_date: str) -> dict:
         # 9. Получаем историю должностей и рассчитываем зарплаты по периодам
         logger.info("💰 Расчет зарплат с учетом истории должностей...")
         
+        # Загружаем историю должностей для всех сотрудников одним запросом (оптимизация!)
+        all_employee_ids = list(attendance_with_dates.keys())
+        position_histories = await get_position_history_for_multiple_employees(
+            all_employee_ids, 
+            period_start, 
+            period_end
+        )
+        logger.debug(f"📦 Загружена история для {len(position_histories)} сотрудников")
+        
+        # Обрабатываем сотрудников с attendance (почасовые и посменные)
         for emp_id in attendance_with_dates.keys():
             if emp_id not in employees_info:
                 continue
@@ -391,12 +416,8 @@ async def fetch_salary_from_iiko(from_date: str, to_date: str) -> dict:
             emp_info = employees_info[emp_id]
             emp_name = emp_info['name']
             
-            # Получаем историю должностей за период расчета
-            try:
-                position_history = await get_position_history_for_period(emp_id, period_start, period_end)
-            except Exception as e:
-                logger.warning(f"⚠️ Не удалось получить историю должностей для {emp_name}: {e}. Используем текущую должность.")
-                position_history = []
+            # Получаем историю должностей из уже загруженного кеша
+            position_history = position_histories.get(emp_id, [])
             
             # Если истории нет, используем текущую должность из iiko
             if not position_history:
@@ -418,6 +439,10 @@ async def fetch_salary_from_iiko(from_date: str, to_date: str) -> dict:
                 fixed_rate = settings.get('fixed_rate')
                 commission_percent = settings.get('commission_percent', 0.0)
                 commission_type = settings.get('commission_type', 'sales')
+                
+                # Пропускаем месячные ставки здесь - они обрабатываются отдельно
+                if payment_type == 'monthly':
+                    continue
                 
                 logger.debug(f"  📋 {emp_name}: {position_name} ({valid_from} - {valid_to}), {payment_type}, комиссия {commission_percent}%")
                 
@@ -452,16 +477,10 @@ async def fetch_salary_from_iiko(from_date: str, to_date: str) -> dict:
                 if period_work_days == 0:
                     continue
                 
-                # Пересчитываем базовую оплату для посменной/помесячной
+                # Пересчитываем базовую оплату для посменной
                 if payment_type == 'per_shift' and fixed_rate:
                     period_regular_payment = fixed_rate * period_work_days
                     logger.debug(f"    💵 Посменная: {fixed_rate}₽ × {period_work_days} смен = {period_regular_payment}₽")
-                
-                elif payment_type == 'monthly' and fixed_rate:
-                    # Для помесячной выплачиваем пропорционально дням работы
-                    # Можно сделать полную выплату, если работал хотя бы 1 день в периоде
-                    period_regular_payment = fixed_rate
-                    logger.debug(f"    💵 Помесячная: {fixed_rate}₽")
                 
                 # Рассчитываем комиссию для этого периода
                 period_bonus = 0
@@ -517,6 +536,82 @@ async def fetch_salary_from_iiko(from_date: str, to_date: str) -> dict:
                 
                 logger.info(f"✅ {emp_name} ({position_name}, {valid_from} - {valid_to}): {salary_data[period_key]['total_payment']:.2f}₽")
         
+        # 10. Обрабатываем сотрудников с месячной ставкой (не требуют attendance)
+        logger.info("📅 Расчет месячных ставок...")
+        for emp_id, emp_info in employees_info.items():
+            if emp_info.get('deleted'):
+                continue
+            
+            emp_name = emp_info['name']
+            
+            # Получаем историю должностей
+            try:
+                position_history = await get_position_history_for_period(emp_id, period_start, period_end)
+            except Exception as e:
+                position_history = []
+            
+            if not position_history:
+                position_history = [{
+                    'position_name': emp_info['position'],
+                    'valid_from': period_start,
+                    'valid_to': period_end
+                }]
+            
+            # Обрабатываем каждый период
+            for period in position_history:
+                position_name = period['position_name']
+                valid_from = period['valid_from']
+                valid_to = period['valid_to'] or period_end
+                
+                settings = position_settings.get(position_name, {})
+                payment_type = settings.get('payment_type', 'hourly')
+                fixed_rate = settings.get('fixed_rate')
+                
+                # Обрабатываем только месячные ставки с заданной ставкой
+                if payment_type != 'monthly' or not fixed_rate:
+                    continue
+                
+                # Вычисляем пересечение периода должности с периодом расчета
+                calc_from = max(valid_from, period_start)
+                calc_to = min(valid_to, period_end)
+                
+                # Количество календарных дней в периоде расчета
+                days_in_period = (calc_to - calc_from).days + 1
+                
+                # Количество дней в месяце (берем месяц начала периода)
+                import calendar
+                year = calc_from.year
+                month = calc_from.month
+                days_in_month = calendar.monthrange(year, month)[1]
+                
+                # Пропорциональный расчет: (ставка / дней_в_месяце) × дней_в_периоде
+                period_regular_payment = round((fixed_rate / days_in_month) * days_in_period, 2)
+                
+                logger.debug(f"    💵 Месячная: {fixed_rate}₽ / {days_in_month} дн. × {days_in_period} дн. = {period_regular_payment}₽")
+                
+                # Создаем запись
+                period_key = f"{emp_id}_{position_name}_{valid_from}"
+                salary_data[period_key] = {
+                    'name': emp_name,
+                    'position': position_name,
+                    'payment_type': payment_type,
+                    'fixed_rate': fixed_rate,
+                    'total_hours': 0,
+                    'work_days': days_in_period,  # Календарные дни
+                    'regular_payment': period_regular_payment,
+                    'bonus': 0,
+                    'penalty': 0,
+                    'total_payment': period_regular_payment,
+                    'revenue': 0,
+                    'commission_percent': 0,
+                    'commission_type': 'sales',
+                    'period_start': valid_from,
+                    'period_end': valid_to,
+                    'days_in_month': days_in_month  # Для отображения
+                }
+                
+                logger.info(f"✅ {emp_name} ({position_name}, месячная): {period_regular_payment:.2f}₽ ({days_in_period}/{days_in_month} дн.)")
+        
         logger.info(f"✅ Загружены данные по {len(salary_data)} записям (сотрудники × периоды)")
         return salary_data
         
@@ -571,7 +666,9 @@ def format_salary_report(salary_data: dict, from_date: str, to_date: str) -> str
                 payment_info = f"📅 Смены: {emp['work_days']} × {fixed_rate:.0f}₽"
             else:  # monthly
                 fixed_rate = emp.get('fixed_rate', 0)
-                payment_info = f"📆 Месяц: {fixed_rate:.0f}₽"
+                days_in_month = emp.get('days_in_month', 30)
+                work_days = emp.get('work_days', 0)
+                payment_info = f"📆 Месячная: {fixed_rate:.0f}₽ × {work_days}/{days_in_month} дн."
             
             lines.append(
                 f"  • {emp['name']}{period_info}\n"

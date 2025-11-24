@@ -23,6 +23,13 @@ async def init_pool() -> None:
         _POOL = await asyncpg.create_pool(dsn, min_size=1, max_size=10)
 
 
+def get_pool() -> asyncpg.Pool:
+    """Получить пул соединений"""
+    if _POOL is None:
+        raise RuntimeError("Пул соединений не инициализирован. Вызовите init_pool() сначала.")
+    return _POOL
+
+
 ## ────────────── Функции выборки складов ──────────────
 
 async def fetch_by_names(names: Iterable[str]) -> list[tuple[str, str]]:

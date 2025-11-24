@@ -7,6 +7,8 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from handlers import salary  # новый модуль
 from handlers import set_position_commission  # настройка комиссий по должностям
 from handlers import correct_position  # корректировка истории должностей
+from handlers import yandex_commission_settings  # настройка комиссии Яндекса
+from handlers import departments_manager  # управление цехами
 from handlers import document
 from handlers import template_creation
 from handlers import commands # твои роутеры
@@ -31,6 +33,8 @@ dp.include_router(commands.router)
 dp.include_router(salary.router)
 dp.include_router(set_position_commission.router)
 dp.include_router(correct_position.router)
+dp.include_router(yandex_commission_settings.router)
+dp.include_router(departments_manager.router)
 dp.include_router(writeoff_upload.router)
 dp.include_router(sales_olap_console.router)
 dp.include_router(document.router)

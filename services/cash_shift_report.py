@@ -1,7 +1,7 @@
 import httpx
 from iiko.iiko_auth import get_auth_token, get_base_url
 import logging
-import xml.etree.ElementTree as ET
+import json
 from datetime import datetime
 
 
@@ -9,174 +9,69 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 
-## ────────────── Получение заказов через кастомный OLAP отчет ──────────────
-async def get_orders_from_custom_olap(from_date: str, to_date: str) -> list:
-    """Получает заказы через настроенный OLAP отчет с группировкой по времени закрытия"""
+## ────────────── Получение отчета по ID (сохраненная конфигурация) ──────────────
+async def get_preset_report_by_id(preset_id: str, from_date: str, to_date: str) -> list:
+    """Получает данные из сохраненного отчета iiko по его ID"""
     token = await get_auth_token()
     base_url = get_base_url()
     
-    url = f"{base_url}/resto/api/reports/olap"
-    
     # Конвертируем формат даты из 2025-11-01 в 01.11.2025
-    from datetime import datetime
     try:
         from_dt = datetime.strptime(from_date, "%Y-%m-%d")
         to_dt = datetime.strptime(to_date, "%Y-%m-%d")
         from_date_iiko = from_dt.strftime("%d.%m.%Y")
         to_date_iiko = to_dt.strftime("%d.%m.%Y")
     except:
-        # Если уже в правильном формате
         from_date_iiko = from_date
         to_date_iiko = to_date
     
-    # Параметры отчета согласно описанию из iiko
+    url = f"{base_url}/resto/api/v2/reports/olap/byPresetId/{preset_id}"
+    
     params = {
         "key": token,
-        "report": "SALES",
         "from": from_date_iiko,
         "to": to_date_iiko,
-        # Группировка по времени закрытия
-        "groupByRowFields": "CloseTime",
-        # Агрегация - сумма со скидкой
-        "groupByColFields": "DishDiscountSumInt",
     }
     
     try:
-        logger.info(f"🔍 Запрос кастомного OLAP отчета с {from_date} по {to_date}")
-        logger.info(f"   URL: {url}")
-        logger.info(f"   Параметры: report={params['report']}, from={params['from']}, to={params['to']}")
         async with httpx.AsyncClient(verify=False, timeout=60.0) as client:
             response = await client.get(url, params=params)
         
-        logger.info(f"📊 Ответ OLAP: статус {response.status_code}")
-        
         if response.status_code != 200:
-            logger.error(f"❌ Ошибка OLAP: {response.status_code} - {response.text[:500]}")
+            logger.error(f"❌ Ошибка preset-отчета: {response.status_code}")
             return []
         
-        # Выводим сырой XML в консоль для анализа
-        logger.info("=" * 80)
-        logger.info("===== СЫРОЙ XML ОТВЕТ OLAP =====")
-        logger.info("=" * 80)
-        logger.info(response.text[:2000])  # Первые 2000 символов
-        logger.info("=" * 80)
-        
-        # Парсим XML
-        root = ET.fromstring(response.text)
+        # Парсим JSON ответ
+        data = json.loads(response.text)
         orders = []
         
-        # Ищем все записи о продажах
-        for row in root.findall('.//r'):
-            # Ищем время закрытия в разных тегах
-            close_time = (
-                row.findtext('CloseTime') or 
-                row.findtext('d0') or
-                row.findtext('Date')
-            )
-            # Ищем сумму в разных тегах
-            sum_val = (
-                row.findtext('DishDiscountSumInt') or
-                row.findtext('v0') or
-                row.findtext('Sum')
-            )
+        for item in data.get("data", []):
+            close_time = item.get("CloseTime")
+            sum_val = item.get("DishDiscountSumInt", 0)
             
-            if close_time and sum_val:
-                try:
-                    orders.append({
-                        'closeTime': close_time,
-                        'sum': float(sum_val)
-                    })
-                except (ValueError, TypeError) as e:
-                    logger.debug(f"Ошибка парсинга строки: closeTime={close_time}, sum={sum_val}, error={e}")
-                    continue
+            if close_time:
+                orders.append({
+                    'closeTime': close_time,
+                    'sum': float(sum_val)
+                })
         
-        logger.info(f"✅ Получено {len(orders)} заказов из OLAP")
-        if orders:
-            logger.info(f"   Первые 3 заказа: {orders[:3]}")
-        
+        logger.info(f"✅ Получено {len(orders)} заказов из preset-отчета")
         return orders
         
     except Exception as e:
-        logger.exception(f"❌ Ошибка при запросе OLAP: {e}")
+        logger.error(f"❌ Ошибка preset-отчета: {e}")
         return []
 
 
-## ────────────── Получение заказов через OLAP отчет (старый метод) ──────────────
+
+
+
+## ────────────── Получение заказов через OLAP отчет ──────────────
 async def get_orders_from_olap(from_date: str, to_date: str) -> list:
-    """Получает все заказы за период через OLAP отчет"""
-    token = await get_auth_token()
-    base_url = get_base_url()
-    
-    # Сначала пробуем кастомный отчет
-    custom_orders = await get_orders_from_custom_olap(from_date, to_date)
-    if custom_orders:
-        return custom_orders
-    
-    # Если не сработал - пробуем другие варианты
-    logger.warning("⚠️ Кастомный OLAP не вернул данных, пробуем альтернативные отчеты...")
-    reports_to_try = [
-        ("SALES_BY_HOUR", {}),  # Продажи по часам
-        ("SALES", {"groupRow": "OpenDate.Typed"}),  # Группировка по дате открытия
-        ("SALES_DETAILED", {}),  # Детализированные продажи
-    ]
-    
-    for report_name, extra_params in reports_to_try:
-        url = f"{base_url}/resto/api/reports/olap"
-        params = {
-            "key": token,
-            "report": report_name,
-            "from": from_date,
-            "to": to_date,
-        }
-        params.update(extra_params)
-        
-        try:
-            logger.info(f"🔍 Пробую OLAP отчет: {report_name}")
-            async with httpx.AsyncClient(verify=False, timeout=60.0) as client:
-                response = await client.get(url, params=params)
-            
-            if response.status_code != 200:
-                logger.debug(f"   ❌ {report_name}: {response.status_code}")
-                continue
-            
-            # Парсим XML
-            root = ET.fromstring(response.text)
-            orders = []
-            
-            # Ищем все записи о продажах
-            for row in root.findall('.//r'):
-                # Пытаемся найти дату/время и сумму в разных форматах
-                date_val = row.findtext('d0') or row.findtext('Date')
-                time_val = row.findtext('d1') or row.findtext('Time') or row.findtext('Hour')
-                sum_val = row.findtext('v0') or row.findtext('Sum') or row.findtext('DishDiscountSumInt')
-                
-                if date_val and sum_val:
-                    try:
-                        # Формируем время закрытия
-                        if time_val:
-                            close_time = f"{date_val} {time_val}"
-                        else:
-                            close_time = date_val
-                        
-                        orders.append({
-                            'closeTime': close_time,
-                            'sum': float(sum_val)
-                        })
-                    except (ValueError, TypeError):
-                        continue
-            
-            if orders:
-                logger.info(f"✅ {report_name}: получено {len(orders)} записей")
-                return orders
-            else:
-                logger.debug(f"   ⚠️ {report_name}: нет данных")
-                
-        except Exception as e:
-            logger.debug(f"   ❌ {report_name}: {e}")
-            continue
-    
-    logger.warning(f"⚠️ Ни один OLAP отчет не вернул данные о заказах")
-    return []
+    """Получает все заказы за период через preset-отчет"""
+    PRESET_REPORT_ID = "9555cc88-492c-48f6-9a09-629346af5bde"
+    return await get_preset_report_by_id(PRESET_REPORT_ID, from_date, to_date)
+
 
 
 ## ────────────── Получение данных по кассовым сменам ──────────────
@@ -220,8 +115,7 @@ async def get_cash_shifts_with_details(from_date: str, to_date: str) -> list:
         }
         shifts_with_orders.append(shift_info)
     
-    # Сразу получаем заказы через OLAP
-    logger.info("📊 Получение заказов через OLAP...")
+    # Сразу получаем заказы через preset-отчет
     all_orders = await get_orders_from_olap(from_date, to_date)
     
     if all_orders:
@@ -238,18 +132,27 @@ async def get_cash_shifts_with_details(from_date: str, to_date: str) -> list:
                     for order in all_orders:
                         try:
                             order_time_str = order['closeTime']
-                            for fmt in ['%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M', '%d.%m.%Y %H:%M:%S', '%d.%m.%Y %H:%M']:
-                                try:
-                                    order_time = datetime.strptime(order_time_str, fmt)
-                                    order_time = order_time.replace(tzinfo=None)
-                                    shift_start_tz = shift_start.replace(tzinfo=None)
-                                    shift_end_tz = shift_end.replace(tzinfo=None)
-                                    
-                                    if shift_start_tz <= order_time <= shift_end_tz:
-                                        shift_info["orders"].append(order)
-                                    break
-                                except ValueError:
-                                    continue
+                            
+                            # Пробуем ISO формат с миллисекундами
+                            if 'T' in order_time_str:
+                                # Формат: 2025-11-01T07:39:58.455
+                                order_time = datetime.fromisoformat(order_time_str.replace('Z', '+00:00'))
+                            else:
+                                # Другие форматы
+                                for fmt in ['%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M', '%d.%m.%Y %H:%M:%S', '%d.%m.%Y %H:%M']:
+                                    try:
+                                        order_time = datetime.strptime(order_time_str, fmt)
+                                        break
+                                    except ValueError:
+                                        continue
+                            
+                            order_time = order_time.replace(tzinfo=None)
+                            shift_start_tz = shift_start.replace(tzinfo=None)
+                            shift_end_tz = shift_end.replace(tzinfo=None)
+                            
+                            if shift_start_tz <= order_time <= shift_end_tz:
+                                shift_info["orders"].append(order)
+                                
                         except Exception as e:
                             logger.debug(f"Ошибка парсинга времени заказа: {e}")
                             continue

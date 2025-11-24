@@ -1,15 +1,18 @@
 """
 Получение данных по зарплатам напрямую из iiko API
 Использует процент комиссии по должностям из БД для расчета бонусов
+Учитывает историю изменений должностей сотрудников
 """
 import httpx
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from datetime import datetime, date as date_type
 import logging
 from iiko.iiko_auth import get_auth_token, get_base_url
 from services.cash_shift_report import get_cash_shifts_with_details
 from sqlalchemy import select
 from db.position_commission_db import async_session, PositionCommission
+from services.writeoff_documents import get_writeoff_documents, calculate_writeoff_sum_for_employee
+from db.employee_position_history_db import get_position_history_for_period, update_position_from_iiko
 
 logger = logging.getLogger(__name__)
 # Временно повышаем уровень для отладки
@@ -40,12 +43,11 @@ def normalize_isoformat(dt_str: str) -> str:
     return dt_str
 
 
-## ────────────── Расчет выручки сотрудника ──────────────
-def calculate_employee_revenue(employee_attendances, cash_shifts, debug_name=None) -> float:
+## ────────────── Расчет выручки сотрудника по заказам ──────────────
+def calculate_employee_revenue_by_orders(employee_attendances, cash_shifts, debug_name=None) -> float:
     """
-    Рассчитывает выручку сотрудника ПРОПОРЦИОНАЛЬНО отработанным часам в каждой смене
-    Формула: (часы_работы_в_смене / длительность_смены) × выручка_смены
-    Это справедливо: если работал половину смены - получает половину выручки
+    Рассчитывает выручку сотрудника на основе заказов, закрытых во время его работы
+    Использует точное время закрытия каждого заказа из preset-отчета
     """
     emp_revenue = 0
     
@@ -53,44 +55,94 @@ def calculate_employee_revenue(employee_attendances, cash_shifts, debug_name=Non
         try:
             s_start = _strip_tz(datetime.fromisoformat(normalize_isoformat(shift.get("openDate"))))
             s_end = _strip_tz(datetime.fromisoformat(normalize_isoformat(shift.get("closeDate"))))
-            shift_duration = (s_end - s_start).total_seconds() / 3600
-            
-            if shift_duration <= 0:
-                continue
-            
-            shift_revenue = shift.get("payOrders", 0)
+            shift_orders = shift.get("orders", [])
             
             if debug_name:
                 logger.info(
                     f"      🔍 Смена {s_start.strftime('%d.%m %H:%M')}-{s_end.strftime('%H:%M')}: "
-                    f"выручка {shift_revenue:.2f}₽, длительность {shift_duration:.2f}ч"
+                    f"{len(shift_orders)} заказов"
                 )
-            
-            # Ищем пересечение рабочего времени сотрудника со сменой
-            shift_employee_hours = 0
-            
-            for a_start, a_end in employee_attendances:
-                overlap_start = max(a_start, s_start)
-                overlap_end = min(a_end, s_end)
+                # Показываем attendance периоды сотрудника для этой смены
+                matching_periods = [(a_s, a_e) for a_s, a_e in employee_attendances 
+                                   if not (a_e < s_start or a_s > s_end)]
+                if matching_periods:
+                    logger.info(f"         📅 Attendance в эту смену:")
+                    for a_s, a_e in matching_periods:
+                        logger.info(f"            {a_s.strftime('%H:%M')}-{a_e.strftime('%H:%M')}")
                 
-                if overlap_start < overlap_end:
-                    # Часы работы сотрудника в эту смену
-                    overlap_hours = (overlap_end - overlap_start).total_seconds() / 3600
-                    shift_employee_hours += overlap_hours
+                # Показываем первые 2 заказа для понимания формата
+                if shift_orders:
+                    logger.info(f"         📦 Примеры заказов:")
+                    for i, order in enumerate(shift_orders[:2], 1):
+                        logger.info(f"            {i}. {order.get('closeTime')}: {order.get('sum')}₽")
             
-            if shift_employee_hours > 0:
-                # Пропорция: отработанные_часы / длительность_смены
-                proportion = shift_employee_hours / shift_duration
-                revenue_for_shift = shift_revenue * proportion
-                emp_revenue += revenue_for_shift
-                
+            if not shift_orders:
                 if debug_name:
-                    logger.info(
-                        f"         ✅ Работал {shift_employee_hours:.2f}ч из {shift_duration:.2f}ч "
-                        f"({proportion:.1%}) → +{revenue_for_shift:.2f}₽"
-                    )
-            elif debug_name:
-                logger.info(f"         ⏭️ Не работал в эту смену")
+                    logger.info(f"         ⏭️ Нет заказов в эту смену")
+                continue
+            
+            # Считаем выручку только от заказов, закрытых во время работы сотрудника
+            shift_revenue = 0
+            matched_orders = 0
+            total_shift_revenue = sum(o.get('sum', 0) for o in shift_orders)
+            
+            if debug_name:
+                logger.info(f"         📊 Общая выручка смены: {total_shift_revenue:.2f}₽")
+            
+            for order in shift_orders:
+                try:
+                    # Парсим время закрытия заказа
+                    order_time_str = order.get('closeTime')
+                    if not order_time_str:
+                        continue
+                    
+                    # Парсим ISO формат или другие форматы
+                    order_time = None
+                    if 'T' in order_time_str:
+                        # ISO формат: 2025-11-01T07:39:58.455
+                        try:
+                            order_time = datetime.fromisoformat(order_time_str.replace('Z', '+00:00'))
+                        except ValueError:
+                            pass
+                    
+                    if not order_time:
+                        # Пробуем другие форматы
+                        for fmt in ['%Y-%m-%d %H:%M:%S.%f', '%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M', '%d.%m.%Y %H:%M:%S']:
+                            try:
+                                order_time = datetime.strptime(order_time_str, fmt)
+                                break
+                            except ValueError:
+                                continue
+                    
+                    if not order_time:
+                        if debug_name:
+                            logger.debug(f"Не удалось распарсить время заказа: {order_time_str}")
+                        continue
+                    
+                    # Убираем timezone для сравнения
+                    order_time = _strip_tz(order_time)
+                    
+                    # Проверяем, был ли сотрудник на работе в момент закрытия заказа
+                    for a_start, a_end in employee_attendances:
+                        if a_start <= order_time <= a_end:
+                            order_sum = order.get('sum', 0)
+                            shift_revenue += order_sum
+                            matched_orders += 1
+                            if debug_name and matched_orders <= 5:  # Показываем первые 5 заказов для отладки
+                                logger.info(f"            ✅ {order_time.strftime('%d.%m %H:%M:%S')}: {order_sum:.2f}₽")
+                            break
+                    
+                except Exception as e:
+                    logger.debug(f"Ошибка обработки заказа: {e}")
+                    continue
+            
+            emp_revenue += shift_revenue
+            
+            if debug_name:
+                if shift_revenue > 0:
+                    logger.info(f"         ✅ Выручка сотрудника: {shift_revenue:.2f}₽ ({matched_orders} из {len(shift_orders)} заказов)")
+                else:
+                    logger.info(f"         ⏭️ Не работал в эту смену или нет подходящих заказов")
                 
         except Exception as e:
             logger.warning(f"Ошибка при расчете выручки для смены: {e}")
@@ -191,15 +243,24 @@ async def fetch_salary_from_iiko(from_date: str, to_date: str) -> dict:
         
         logger.info(f"✅ Загружено {len(roles_dict)} должностей")
         
-        # 4. Загружаем проценты комиссии из БД по должностям
-        logger.info("📥 Загрузка процентов комиссии из БД...")
-        position_commissions = {}
+        # 4. Загружаем настройки комиссии из БД по должностям
+        logger.info("📥 Загрузка настроек комиссии из БД...")
+        position_settings = {}
         async with async_session() as session:
             result = await session.execute(select(PositionCommission))
             commissions = result.scalars().all()
-            position_commissions = {c.position_name: c.commission_percent for c in commissions}
+            # Сохраняем все настройки: payment_type, fixed_rate, commission_percent, commission_type
+            position_settings = {
+                c.position_name: {
+                    'payment_type': c.payment_type,
+                    'fixed_rate': c.fixed_rate,
+                    'commission_percent': c.commission_percent,
+                    'commission_type': c.commission_type
+                } 
+                for c in commissions
+            }
         
-        logger.info(f"✅ Загружено {len(position_commissions)} процентов по должностям")
+        logger.info(f"✅ Загружено {len(position_settings)} настроек по должностям")
         
         # 5. Создаем справочник сотрудников
         employees_info = {}
@@ -229,19 +290,22 @@ async def fetch_salary_from_iiko(from_date: str, to_date: str) -> dict:
             if len(employees_info) < 3:
                 logger.info(f"🔍 Сотрудник: {emp_name}, код: '{position_code}' → должность: '{position}'")
             
-            # Берем процент из БД по полному названию должности
-            bonus_percent = position_commissions.get(position, 0.0)
+            # Берем настройки из БД по полному названию должности
+            settings = position_settings.get(position, {})
             
             employees_info[emp_id] = {
                 'name': emp_name,
                 'position': position,
                 'deleted': emp.findtext("deleted", "false") == "true",
-                'bonus_percent': bonus_percent
+                'payment_type': settings.get('payment_type', 'hourly'),
+                'fixed_rate': settings.get('fixed_rate'),
+                'commission_percent': settings.get('commission_percent', 0.0),
+                'commission_type': settings.get('commission_type', 'sales')
             }
         
         logger.info(f"✅ Загружено {len(employees_info)} сотрудников")
         
-        # 6. Получаем кассовые смены с выручкой
+        # 6. Получаем кассовые смены с выручкой (для комиссии от продаж)
         logger.info("📥 Получение кассовых смен...")
         try:
             cash_shifts = await get_cash_shifts_with_details(from_date, to_date)
@@ -250,9 +314,23 @@ async def fetch_salary_from_iiko(from_date: str, to_date: str) -> dict:
             logger.warning(f"⚠️ Не удалось получить кассовые смены: {e}")
             cash_shifts = []
         
-        # 7. Обрабатываем attendance данные
+        # 7. Получаем расходные накладные (для комиссии от расходных)
+        logger.info("📥 Получение расходных накладных...")
+        try:
+            writeoff_docs = await get_writeoff_documents(from_date, to_date)
+            logger.info(f"✅ Загружено {len(writeoff_docs)} расходных накладных")
+        except Exception as e:
+            logger.warning(f"⚠️ Не удалось получить расходные накладные: {e}")
+            writeoff_docs = []
+        
+        # 8. Обрабатываем attendance данные с учетом истории должностей
         salary_data = {}
-        attendance_by_employee = {}  # Для расчета выручки
+        attendance_by_employee = {}  # Для расчета выручки/расходных
+        attendance_with_dates = {}  # Храним attendance с датами для разделения по периодам
+        
+        # Преобразуем строки дат в date объекты для работы с историей
+        period_start = datetime.strptime(from_date, "%Y-%m-%d").date()
+        period_end = datetime.strptime(to_date, "%Y-%m-%d").date()
         
         for att in attendances:
             emp_id = att.findtext("employeeId")
@@ -263,89 +341,183 @@ async def fetch_salary_from_iiko(from_date: str, to_date: str) -> dict:
             if employees_info[emp_id].get('deleted'):
                 continue
             
-            # Инициализируем запись если её нет
-            if emp_id not in salary_data:
-                salary_data[emp_id] = {
-                    'name': employees_info[emp_id]['name'],
-                    'position': employees_info[emp_id]['position'],
-                    'total_hours': 0,
-                    'work_days': 0,
-                    'regular_payment': 0,
-                    'bonus': 0,
-                    'penalty': 0,
-                    'total_payment': 0,
-                    'revenue': 0,
-                    'bonus_percent': employees_info[emp_id]['bonus_percent']
-                }
-                attendance_by_employee[emp_id] = []
+            emp_info = employees_info[emp_id]
             
-            # Собираем временные интервалы attendance для расчета выручки
+            # Инициализируем структуры данных
+            if emp_id not in attendance_by_employee:
+                attendance_by_employee[emp_id] = []
+                attendance_with_dates[emp_id] = []
+            
+            # Собираем временные интервалы attendance
             try:
                 date_from = att.findtext("dateFrom")
                 date_to = att.findtext("dateTo")
                 if date_from and date_to:
                     start = _strip_tz(datetime.fromisoformat(normalize_isoformat(date_from)))
                     end = _strip_tz(datetime.fromisoformat(normalize_isoformat(date_to)))
+                    
+                    # Извлекаем данные об оплате
+                    regular_payment = 0
+                    penalty = 0
+                    payment_node = att.find("paymentDetails")
+                    if payment_node is not None:
+                        try:
+                            regular_payment = float(payment_node.findtext("regularPaymentSum", "0"))
+                            penalty = float(payment_node.findtext("penaltySum", "0"))
+                        except Exception as e:
+                            logger.warning(f"Ошибка парсинга paymentDetails для {emp_id}: {e}")
+                    
+                    # Сохраняем attendance с данными для последующей обработки по периодам
+                    attendance_with_dates[emp_id].append({
+                        'start': start,
+                        'end': end,
+                        'regular_payment': regular_payment,
+                        'penalty': penalty
+                    })
+                    
+                    # Также сохраняем в старый формат для расчета выручки
                     attendance_by_employee[emp_id].append((start, end))
                     
-                    # Считаем часы
-                    hours = (end - start).total_seconds() / 3600
-                    salary_data[emp_id]['total_hours'] += hours
-                    salary_data[emp_id]['work_days'] += 1
             except Exception as e:
                 logger.warning(f"Ошибка обработки дат для {emp_id}: {e}")
-            
-            # Извлекаем данные об оплате из paymentDetails
-            payment_node = att.find("paymentDetails")
-            if payment_node is not None:
-                try:
-                    # Базовая оплата
-                    regular = float(payment_node.findtext("regularPaymentSum", "0"))
-                    salary_data[emp_id]['regular_payment'] += regular
-                    
-                    # Штрафы
-                    penalty = float(payment_node.findtext("penaltySum", "0"))
-                    salary_data[emp_id]['penalty'] += penalty
-                    
-                except Exception as e:
-                    logger.warning(f"Ошибка парсинга paymentDetails для {emp_id}: {e}")
         
-        # 8. Рассчитываем выручку и бонусы для каждого сотрудника
-        logger.info("💰 Расчет бонусов от выручки...")
-        for emp_id, data in salary_data.items():
-            # Рассчитываем выручку за смены сотрудника
-            if cash_shifts and emp_id in attendance_by_employee:
-                # Детальное логирование для отладки
-                if "Сорокина В" in data['name']:
-                    logger.info(f"🔍 ДЕТАЛЬНЫЙ РАСЧЕТ ДЛЯ: {data['name']}")
-                    logger.info(f"   Attendance периоды: {len(attendance_by_employee[emp_id])}")
-                    for idx, (a_start, a_end) in enumerate(attendance_by_employee[emp_id], 1):
-                        duration = (a_end - a_start).total_seconds() / 3600
-                        logger.info(f"   {idx}. {a_start} - {a_end} ({duration:.1f}ч)")
-                    logger.info(f"   Кассовых смен: {len(cash_shifts)}")
-                    logger.info("   Расчет по сменам:")
+        # 9. Получаем историю должностей и рассчитываем зарплаты по периодам
+        logger.info("💰 Расчет зарплат с учетом истории должностей...")
+        
+        for emp_id in attendance_with_dates.keys():
+            if emp_id not in employees_info:
+                continue
+            
+            emp_info = employees_info[emp_id]
+            emp_name = emp_info['name']
+            
+            # Получаем историю должностей за период расчета
+            try:
+                position_history = await get_position_history_for_period(emp_id, period_start, period_end)
+            except Exception as e:
+                logger.warning(f"⚠️ Не удалось получить историю должностей для {emp_name}: {e}. Используем текущую должность.")
+                position_history = []
+            
+            # Если истории нет, используем текущую должность из iiko
+            if not position_history:
+                position_history = [{
+                    'position_name': emp_info['position'],
+                    'valid_from': period_start,
+                    'valid_to': period_end
+                }]
+            
+            # Обрабатываем каждый период должности отдельно
+            for period in position_history:
+                position_name = period['position_name']
+                valid_from = period['valid_from']
+                valid_to = period['valid_to'] or period_end  # NULL = до конца периода
                 
-                revenue = calculate_employee_revenue(
-                    attendance_by_employee[emp_id],
-                    cash_shifts,
-                    debug_name=data['name'] if "Сорокина В" in data['name'] else None
-                )
-                data['revenue'] = revenue
+                # Получаем настройки для этой должности
+                settings = position_settings.get(position_name, {})
+                payment_type = settings.get('payment_type', 'hourly')
+                fixed_rate = settings.get('fixed_rate')
+                commission_percent = settings.get('commission_percent', 0.0)
+                commission_type = settings.get('commission_type', 'sales')
                 
-                # Рассчитываем бонус
-                if data['bonus_percent'] > 0 and revenue > 0:
-                    bonus = round(revenue * (data['bonus_percent'] / 100), 2)
-                    data['bonus'] = bonus
-                    if "Сорокина В" in data['name']:
-                        logger.info(
-                            f"   ✅ ИТОГ: Выручка={revenue:.2f}₽, Процент={data['bonus_percent']}%, "
-                            f"Бонус={bonus:.2f}₽"
+                logger.debug(f"  📋 {emp_name}: {position_name} ({valid_from} - {valid_to}), {payment_type}, комиссия {commission_percent}%")
+                
+                # Фильтруем attendance для этого периода должности
+                period_attendances = []
+                period_hours = 0
+                period_work_days = 0
+                period_regular_payment = 0
+                period_penalty = 0
+                
+                for att_data in attendance_with_dates[emp_id]:
+                    att_start = att_data['start']
+                    att_end = att_data['end']
+                    
+                    # Проверяем, попадает ли attendance в период должности
+                    att_date = att_start.date()
+                    if valid_from <= att_date <= valid_to:
+                        period_attendances.append((att_start, att_end))
+                        
+                        # Считаем часы
+                        hours = (att_end - att_start).total_seconds() / 3600
+                        period_hours += hours
+                        period_work_days += 1
+                        
+                        # Базовая оплата и штрафы
+                        if payment_type == 'hourly':
+                            period_regular_payment += att_data['regular_payment']
+                        
+                        period_penalty += att_data['penalty']
+                
+                # Пропускаем период если нет работы
+                if period_work_days == 0:
+                    continue
+                
+                # Пересчитываем базовую оплату для посменной/помесячной
+                if payment_type == 'per_shift' and fixed_rate:
+                    period_regular_payment = fixed_rate * period_work_days
+                    logger.debug(f"    💵 Посменная: {fixed_rate}₽ × {period_work_days} смен = {period_regular_payment}₽")
+                
+                elif payment_type == 'monthly' and fixed_rate:
+                    # Для помесячной выплачиваем пропорционально дням работы
+                    # Можно сделать полную выплату, если работал хотя бы 1 день в периоде
+                    period_regular_payment = fixed_rate
+                    logger.debug(f"    💵 Помесячная: {fixed_rate}₽")
+                
+                # Рассчитываем комиссию для этого периода
+                period_bonus = 0
+                period_revenue = 0
+                
+                if commission_percent > 0 and period_attendances:
+                    if commission_type == 'sales' and cash_shifts:
+                        # Комиссия от продаж
+                        revenue = calculate_employee_revenue_by_orders(
+                            period_attendances,
+                            cash_shifts,
+                            debug_name=None
                         )
-            
-            # Итоговая сумма
-            data['total_payment'] = data['regular_payment'] + data['bonus'] - data['penalty']
+                        period_revenue = revenue
+                        
+                        if revenue > 0:
+                            period_bonus = round(revenue * (commission_percent / 100), 2)
+                            logger.debug(f"    💰 Выручка: {revenue:.2f}₽ × {commission_percent}% = {period_bonus:.2f}₽")
+                    
+                    elif commission_type == 'writeoff' and writeoff_docs:
+                        # Комиссия от расходных накладных
+                        writeoff_sum, filtered_docs = calculate_writeoff_sum_for_employee(
+                            writeoff_docs,
+                            period_attendances
+                        )
+                        period_revenue = writeoff_sum
+                        
+                        if writeoff_sum > 0:
+                            period_bonus = round(writeoff_sum * (commission_percent / 100), 2)
+                            logger.debug(f"    💰 Расходные накладные: {writeoff_sum:.2f}₽ × {commission_percent}% = {period_bonus:.2f}₽ ({len(filtered_docs)} накл.)")
+                
+                # Создаем уникальный ключ для каждого периода: emp_id + должность + период
+                period_key = f"{emp_id}_{position_name}_{valid_from}"
+                
+                # Создаем отдельную запись для этого периода должности
+                salary_data[period_key] = {
+                    'name': emp_name,
+                    'position': position_name,  # Должность в этом периоде
+                    'payment_type': payment_type,
+                    'fixed_rate': fixed_rate,
+                    'total_hours': period_hours,
+                    'work_days': period_work_days,
+                    'regular_payment': period_regular_payment,
+                    'bonus': period_bonus,
+                    'penalty': period_penalty,
+                    'total_payment': period_regular_payment + period_bonus - period_penalty,
+                    'revenue': period_revenue,
+                    'commission_percent': commission_percent,
+                    'commission_type': commission_type,
+                    'period_start': valid_from,  # Добавляем информацию о периоде для отображения
+                    'period_end': valid_to
+                }
+                
+                logger.info(f"✅ {emp_name} ({position_name}, {valid_from} - {valid_to}): {salary_data[period_key]['total_payment']:.2f}₽")
         
-        logger.info(f"✅ Загружены данные по {len(salary_data)} сотрудникам")
+        logger.info(f"✅ Загружены данные по {len(salary_data)} записям (сотрудники × периоды)")
         return salary_data
         
     except Exception as e:
@@ -381,17 +553,45 @@ def format_salary_report(salary_data: dict, from_date: str, to_date: str) -> str
         position_total = 0
         
         for emp in sorted(employees, key=lambda x: x['name']):
+            # Проверяем, есть ли информация о периоде (для сотрудников с несколькими должностями)
+            period_info = ""
+            if 'period_start' in emp and 'period_end' in emp:
+                period_start = emp['period_start']
+                period_end = emp['period_end']
+                # Показываем период только если он не охватывает весь расчетный период
+                if period_start.strftime("%Y-%m-%d") != from_date or period_end.strftime("%Y-%m-%d") != to_date:
+                    period_info = f" (📅 {period_start.strftime('%d.%m')} - {period_end.strftime('%d.%m')})"
+            
+            # Информация о типе оплаты
+            payment_type = emp.get('payment_type', 'hourly')
+            if payment_type == 'hourly':
+                payment_info = f"⏱️ Часы: {emp['total_hours']:.1f} ч ({emp['work_days']} дн.)"
+            elif payment_type == 'per_shift':
+                fixed_rate = emp.get('fixed_rate', 0)
+                payment_info = f"📅 Смены: {emp['work_days']} × {fixed_rate:.0f}₽"
+            else:  # monthly
+                fixed_rate = emp.get('fixed_rate', 0)
+                payment_info = f"📆 Месяц: {fixed_rate:.0f}₽"
+            
             lines.append(
-                f"  • {emp['name']}\n"
-                f"    ⏱ Часы: {emp['total_hours']:.1f} ч ({emp['work_days']} дн.)\n"
+                f"  • {emp['name']}{period_info}\n"
+                f"    {payment_info}\n"
                 f"    💵 Оплата: {emp['regular_payment']:.2f} ₽"
             )
             
-            # Показываем бонусы только если они есть
+            # Показываем комиссию только если она есть
+            commission_type = emp.get('commission_type', 'sales')
+            commission_percent = emp.get('commission_percent', 0)
+            
             if emp['bonus'] > 0:
+                if commission_type == 'sales':
+                    commission_label = "💰 от продаж"
+                else:  # writeoff
+                    commission_label = "📦 от расходных накладных"
+                
                 lines.append(
-                    f"    📈 Бонусы ({emp['bonus_percent']:.1f}% от выручки): "
-                    f"+{emp['bonus']:.2f} ₽ (выручка: {emp['revenue']:.2f} ₽)"
+                    f"    📈 Комиссия ({commission_percent:.1f}% {commission_label}): "
+                    f"+{emp['bonus']:.2f} ₽ (база: {emp['revenue']:.2f} ₽)"
                 )
             
             if emp['penalty'] > 0:

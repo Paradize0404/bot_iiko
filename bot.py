@@ -6,6 +6,7 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from handlers import salary  # новый модуль
 from handlers import set_position_commission  # настройка комиссий по должностям
+from handlers import correct_position  # корректировка истории должностей
 from handlers import document
 from handlers import template_creation
 from handlers import commands # твои роутеры
@@ -29,6 +30,7 @@ dp = Dispatcher(storage=MemoryStorage())
 dp.include_router(commands.router)
 dp.include_router(salary.router)
 dp.include_router(set_position_commission.router)
+dp.include_router(correct_position.router)
 dp.include_router(writeoff_upload.router)
 dp.include_router(sales_olap_console.router)
 dp.include_router(document.router)

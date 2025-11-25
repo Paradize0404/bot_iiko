@@ -38,7 +38,8 @@ class DBQueries:
         partial_name: str,
         types: list[str] | None = None,
         parents: list[str] | None = None,
-        limit: int = 50
+        limit: int = 50,
+        use_parent_filters: bool = True,
     ) -> list[dict]:
         """
         Universal nomenclature search with optional filters.
@@ -46,8 +47,9 @@ class DBQueries:
         Args:
             partial_name: Search term(s) - words separated by spaces
             types: Filter by nomenclature types (e.g., ["GOODS", "PREPARED"])
-            parents: Filter by parent IDs (defaults to PARENT_FILTERS if None)
+            parents: Filter by parent IDs. If None and use_parent_filters=True, defaults to PARENT_FILTERS
             limit: Max results
+            use_parent_filters: Apply config parent filters when parents not provided
         
         Returns:
             List of dicts with id, name, mainunit, type
@@ -71,7 +73,7 @@ class DBQueries:
             # Apply parent filter (defaults to PARENT_FILTERS)
             if parents is not None:
                 query = query.where(Nomenclature.parent.in_(parents))
-            else:
+            elif use_parent_filters:
                 query = query.where(Nomenclature.parent.in_(PARENT_FILTERS))
 
             # Apply text search for all terms

@@ -1,37 +1,115 @@
 """
 Получение расходных накладных из iiko API
 Документация: https://ru.iiko.help/articles/#!api-documentations/vygruzka-raskhodnykh-nakladnykh
+
+Для получения себестоимости используется OLAP отчет по проводкам (TRANSACTIONS)
 """
 import httpx
 import xml.etree.ElementTree as ET
 from datetime import datetime, date
+from decimal import Decimal
 import logging
+
 from iiko.iiko_auth import get_auth_token, get_base_url
+from utils.datetime_helpers import strip_tz, normalize_isoformat
 
 logger = logging.getLogger(__name__)
 
 
-def _strip_tz(dt):
-    """Убирает timezone из datetime"""
-    return dt.replace(tzinfo=None) if dt.tzinfo else dt
+def _auto_cast(text):
+    """Автоматическое приведение типов из XML"""
+    if text is None:
+        return None
+    try:
+        return int(text)
+    except Exception:
+        try:
+            return Decimal(text)
+        except Exception:
+            return text.strip() if text else None
 
 
-def normalize_isoformat(dt_str: str) -> str:
-    """Нормализует ISO формат даты"""
-    if not dt_str:
-        return dt_str
-    if '.' in dt_str:
-        date_part, ms = dt_str.split('.', 1)
-        tz = ''
-        for sym in ['+', '-']:
-            if sym in ms:
-                ms, tz = ms.split(sym, 1)
-                tz = sym + tz
-                break
-        ms_digits = ''.join(filter(str.isdigit, ms))
-        ms_fixed = (ms_digits + '000000')[:6]
-        return f"{date_part}.{ms_fixed}{tz}"
-    return dt_str
+def parse_xml_report(xml: str):
+    """Парсинг XML отчета в список словарей"""
+    root = ET.fromstring(xml)
+    rows = []
+    for row in root.findall("./r"):
+        rows.append({child.tag: _auto_cast(child.text) for child in row})
+    return rows
+
+
+async def get_writeoff_cost_olap(from_date: str, to_date: str) -> float:
+    """
+    Получить себестоимость по расходным накладным через OLAP отчет по проводкам
+    
+    Типы транзакций:
+    - OUTGOING_INVOICE - себестоимость (списание товаров со склада)
+    - OUTGOING_INVOICE_REVENUE - выручка (сумма продажи)
+    
+    Args:
+        from_date: дата начала в формате YYYY-MM-DD
+        to_date: дата конца в формате YYYY-MM-DD
+        
+    Returns:
+        себестоимость (сумма по транзакции OUTGOING_INVOICE)
+    """
+    try:
+        token = await get_auth_token()
+        base_url = get_base_url()
+        
+        # OLAP API ожидает формат DD.MM.YYYY
+        date_from_display = datetime.strptime(from_date, "%Y-%m-%d").strftime("%d.%m.%Y")
+        date_to_display = datetime.strptime(to_date, "%Y-%m-%d").strftime("%d.%m.%Y")
+        
+        # Параметры для OLAP запроса по проводкам (TRANSACTIONS)
+        params = [
+            ("key", token),
+            ("report", "TRANSACTIONS"),
+            ("from", date_from_display),
+            ("to", date_to_display),
+            ("groupRow", "TransactionType"),      # Тип транзакции
+            ("agr", "Sum"),                       # Сумма
+            # Фильтр - только расходные накладные
+            ("TransactionType", "OUTGOING_INVOICE"),
+        ]
+        
+        logger.info(f"🔍 Запрос OLAP TRANSACTIONS для себестоимости расходных накладных...")
+        
+        async with httpx.AsyncClient(base_url=base_url, timeout=60, verify=False) as client:
+            url = "/resto/api/reports/olap"
+            r = await client.get(url, params=params)
+            
+            if r.status_code != 200:
+                logger.error(f"Ошибка получения OLAP TRANSACTIONS: {r.status_code}")
+                logger.error(f"Ответ: {r.text[:500]}")
+                return 0.0
+            
+            ct = r.headers.get("content-type", "")
+            
+            if ct.startswith("application/json"):
+                data = r.json()
+                report_data = data.get("data", []) or data.get("rows", [])
+            elif ct.startswith("application/xml") or ct.startswith("text/xml"):
+                report_data = parse_xml_report(r.text)
+            else:
+                logger.error(f"Неизвестный Content-Type: {ct}")
+                return 0.0
+            
+            # Ищем сумму по OUTGOING_INVOICE (себестоимость)
+            total_cost = 0.0
+            for row in report_data:
+                trans_type = row.get("TransactionType", "")
+                if trans_type == "OUTGOING_INVOICE":
+                    sum_val = row.get("Sum", 0) or 0
+                    total_cost = float(sum_val)
+                    break
+            
+            logger.info(f"✅ Себестоимость расходных накладных (OLAP): {total_cost:.2f}₽")
+            return total_cost
+            
+    except Exception as e:
+        logger.exception(f"❌ Ошибка получения себестоимости через OLAP: {e}")
+        return 0.0
 
 
 async def get_writeoff_documents(from_date: str, to_date: str) -> list:
@@ -120,23 +198,24 @@ async def get_writeoff_documents(from_date: str, to_date: str) -> list:
                 # Парсим дату
                 if date_str:
                     try:
-                        doc_date = _strip_tz(datetime.fromisoformat(normalize_isoformat(date_str)))
+                        doc_date = strip_tz(datetime.fromisoformat(normalize_isoformat(date_str)))
                     except Exception as e:
                         logger.warning(f"Ошибка парсинга даты {date_str}: {e}")
                         doc_date = None
                 else:
                     doc_date = None
                 
-                # Считаем общую сумму по всем строкам (items)
-                total_sum = 0.0
+                # Считаем общую сумму (выручка) по всем строкам (items)
+                # Замечание: Себестоимость не возвращается в этом API
+                total_sum = 0.0  # Выручка (сумма продажи)
                 items_node = doc_node.find('items')
                 if items_node is not None:
                     for item in items_node.findall('item'):
+                        # Выручка (сумма продажи)
                         item_sum_str = item.findtext('sum', '0')
                         try:
                             total_sum += float(item_sum_str)
-                        except (ValueError, TypeError) as e:
-                            logger.debug(f"Ошибка парсинга суммы '{item_sum_str}': {e}")
+                        except (ValueError, TypeError):
                             pass
                 
                 if doc_id and doc_date:
@@ -144,7 +223,7 @@ async def get_writeoff_documents(from_date: str, to_date: str) -> list:
                         'id': doc_id,
                         'date': doc_date,
                         'document_number': doc_number,
-                        'sum': total_sum,
+                        'sum': total_sum,  # Выручка
                         'conception': conception_code or conception_id,
                         'comment': comment
                     })

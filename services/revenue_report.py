@@ -10,13 +10,20 @@ from typing import Dict, Any
 from datetime import datetime, timedelta
 from iiko.iiko_auth import get_auth_token, get_base_url
 from db.settings_db import get_yandex_commission
-from services.writeoff_documents import get_writeoff_documents
+from services.writeoff_documents import get_writeoff_documents, get_writeoff_cost_olap
 from services.salary_from_iiko import fetch_salary_from_iiko
 from db.departments_db import get_all_department_positions, DEPARTMENTS
+from services.cost_plan import get_cost_plan_summary
 import xml.etree.ElementTree as ET
 from decimal import Decimal
 
 logger = logging.getLogger(__name__)
+
+BAR_COOKING_PLACES = {"бар"}
+KITCHEN_COOKING_PLACES = {"кухня", "кухня-пицца", "пицца"}
+YANDEX_PAYMENT_KEYWORD = "яндекс"
+NO_PAYMENT_LABEL = "(без оплаты)"
+CATEGORY_EXCLUDE_FOR_COST = {"Модификаторы", "Персонал", "Расходные материалы"}
 
 REPORT_ID = "3646ed72-6eee-4085-9179-4f7e88fa1cac"  # Старый preset (не работает с датами)
 
@@ -65,23 +72,65 @@ async def get_revenue_report_olap(date_from: str, date_to: str) -> list:
     # Формируем параметры для OLAP запроса
     params = [
         ("key", token),
-        ("report", "SALES"),  # Название отчета
-        ("from", date_from_display),  # OLAP ожидает DD.MM.YYYY!
-        ("to", date_to_display),      # OLAP ожидает DD.MM.YYYY!
-        ("groupRow", "CookingPlaceType"),  # Группировка по месту приготовления
-        ("groupRow", "PayTypes"),           # Группировка по типу оплаты
-        ("agr", "DishSumInt"),             # Сумма без скидки
-        ("agr", "DishDiscountSumInt"),     # Сумма со скидкой
+        ("report", "SALES"),
+        ("from", date_from_display),
+        ("to", date_to_display),
+        ("groupRow", "CookingPlaceType"),    # Группировка по месту приготовления
+        ("groupRow", "PayTypes"),             # Группировка по типу оплаты
+        ("groupRow", "DishCategory"),         # Для фильтрации по категориям
+        ("groupRow", "DishName"),             # Название блюда для детального анализа
+        ("groupRow", "DeletedWithWriteoff"),  # Для фильтрации удалённых
+        ("groupRow", "OrderDeleted"),         # Для фильтрации удалённых заказов
+        ("agr", "DishSumInt"),                # Сумма без скидки
+        ("agr", "DishDiscountSumInt"),        # Сумма со скидкой
+        ("agr", "ProductCostBase.ProductCost"),  # Себестоимость
+        ("DeletedWithWriteoff", "NOT_DELETED"),
+        ("OrderDeleted", "NOT_DELETED"),
     ]
+    
+    # Добавляем фильтр по типам оплаты
+    payment_types = [
+        "Наличные",
+        "Оплата в приложении (Loyalhub)",
+        "Оплата картой при получении (Loyalhub)",
+        "Оплата картой Сбербанк",
+        "Яндекс.оплата"
+    ]
+    for payment in payment_types:
+        params.append(("PayTypes", payment))
+    
+    # Добавляем фильтр по категориям блюд (из preset отчета)
+    dish_categories = [
+        "Батончики",
+        "Выпечка",
+        "Горячие напитки",
+        "Добавки",
+        "Завтраки",
+        "Закуски",
+        "Кофе",
+        "Лимонады",
+        "Обучение ",
+        "Персонал",
+        "Пиво",
+        "Пицца",
+        "Пицца Яндекс",
+        "Растительное молоко",
+        "Реализация",
+        "Салаты",
+        "Свежевыжатые соки",
+        "Соус",
+        "Супы",
+        "ТМЦ",
+        "Холодные напитки",
+        "ЯНДЕКС"
+    ]
+    for category in dish_categories:
+        params.append(("DishCategory", category))
     
     logger.info(f"🆕 Запрос OLAP отчета SALES, период: {date_from_display} - {date_to_display}")
     
     async with httpx.AsyncClient(base_url=base_url, timeout=60, verify=False) as client:
         url = "/resto/api/reports/olap"
-        
-        full_url = f"{base_url}{url}?key={token}&report=SALES&from={date_from}&to={date_to}"
-        logger.warning(f"🔍 OLAP URL: {full_url}")
-        
         r = await client.get(url, params=params)
         
         logger.info(f"Статус ответа: {r.status_code}")
@@ -104,13 +153,6 @@ async def get_revenue_report_olap(date_from: str, date_to: str) -> list:
             raise RuntimeError(f"Неизвестный формат ответа: {ct}")
         
         logger.info(f"Получено {len(report_data)} строк из OLAP отчета")
-        
-        # 🔍 ОТЛАДКА: Проверяем что именно вернул API
-        if report_data:
-            logger.warning(f"🔍 ПРОВЕРКА ДАННЫХ OLAP API:")
-            logger.warning(f"   Первая строка: {report_data[0]}")
-            if len(report_data) > 1:
-                logger.warning(f"   Последняя строка: {report_data[-1]}")
         
         return report_data
 
@@ -175,12 +217,29 @@ async def calculate_revenue(data: list, date_from: str, date_to: str) -> Dict[st
     
     df = pd.DataFrame(data)
     logger.info(f"Получено {len(df)} строк отчета")
-    logger.debug(f"Колонки отчета: {df.columns.tolist()}")
     
     # Приводим к числовым типам
-    for col in ["DishSumInt", "DishDiscountSumInt"]:
+    for col in ["DishSumInt", "DishDiscountSumInt", "ProductCostBase.ProductCost"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+    
+    # ⚠️ ВАЖНО: Фильтруем по DeletedWithWriteoff (блюдо не удалено)
+    if "DeletedWithWriteoff" in df.columns:
+        before = len(df)
+        df = df[df["DeletedWithWriteoff"] == "NOT_DELETED"].copy()
+        logger.info(f"Отфильтровано удаленных блюд: было {before}, осталось {len(df)}")
+    
+    if "OrderDeleted" in df.columns:
+        df = df[df["OrderDeleted"] == "NOT_DELETED"].copy()
+    
+    # ⚠️ ВАЖНО: Фильтруем по DishCategory (только разрешённые категории)
+    # OLAP API игнорирует параметр DishCategory, поэтому фильтруем в коде
+    # Исключаем: Модификаторы, Расходные материалы (как в iiko)
+    excluded_categories = ["Модификаторы", "Расходные материалы"]
+    if "DishCategory" in df.columns:
+        before = len(df)
+        df = df[~df["DishCategory"].isin(excluded_categories)].copy()
+        logger.info(f"Отфильтровано по категориям блюд: было {before}, осталось {len(df)}")
     
     # Получаем процент комиссии Яндекса
     yandex_commission_percent = await get_yandex_commission()
@@ -201,6 +260,9 @@ async def calculate_revenue(data: list, date_from: str, date_to: str) -> Dict[st
         logger.error(f"Доступные колонки: {df.columns.tolist()}")
         raise ValueError(f"В отчете отсутствует колонка места приготовления")
     
+    # Исключаем строки "(без оплаты)" из расчета себестоимости (удаленные/отмененные блюда)
+    is_no_payment = df[pay_types_col].astype(str).str.contains("без оплаты", case=False, na=False)
+    
     is_yandex = df[pay_types_col].astype(str).str.contains("Яндекс.оплата", case=False, na=False)
     is_bar = df[cooking_place_col].astype(str).str.lower() == "бар"
     is_kitchen = df[cooking_place_col].astype(str).str.lower().isin(["кухня", "кухня-пицца", "пицца"])
@@ -212,17 +274,11 @@ async def calculate_revenue(data: list, date_from: str, date_to: str) -> Dict[st
     # Детальное логирование Яндекс оплат для отладки
     if is_yandex.sum() > 0:
         yandex_details = df[is_yandex][[cooking_place_col, pay_types_col, "DishSumInt", "DishDiscountSumInt"]]
-        logger.info(f"Яндекс оплаты по местам приготовления:")
-        
-        # Логируем уникальные типы оплат, которые попали в фильтр
-        unique_payment_types = yandex_details[pay_types_col].unique()
-        logger.info(f"Типы оплат Яндекс (всего {len(unique_payment_types)}): {list(unique_payment_types)}")
         
         for place in yandex_details[cooking_place_col].unique():
             place_data = yandex_details[yandex_details[cooking_place_col] == place]
             place_sum = place_data["DishSumInt"].sum()
-            place_payments = place_data[pay_types_col].unique()
-            logger.info(f"  {place}: {place_sum:.2f}₽ (типы: {list(place_payments)})")
+            logger.debug(f"  Яндекс {place}: {place_sum:.2f}₽")
     
     # Выручка бара (со скидкой, без Яндекс)
     bar_revenue = df[is_bar & ~is_yandex]["DishDiscountSumInt"].sum()
@@ -245,6 +301,43 @@ async def calculate_revenue(data: list, date_from: str, date_to: str) -> Dict[st
     logger.info(f"Комиссия Яндекса: {yandex_fee:.2f}₽")
     logger.info(f"Выручка доставки (после вычета): {delivery_revenue:.2f}₽")
     
+    # ════════════════════════════════════════════════════════════════════
+    # РАСЧЕТ СЕБЕСТОИМОСТИ И ПРОЦЕНТОВ
+    # ════════════════════════════════════════════════════════════════════
+    cost_col = "ProductCostBase.ProductCost"
+    
+    # 1. Себестоимость бара (без Яндекса, БЕЗ "(без оплаты)")
+    bar_cost = df[is_bar & ~is_yandex & ~is_no_payment][cost_col].sum() if cost_col in df.columns else 0
+    bar_cost_percent = (bar_cost / bar_revenue * 100) if bar_revenue > 0 else 0
+    
+    # 2. Себестоимость кухни (без Яндекса, БЕЗ "(без оплаты)")
+    kitchen_cost = df[is_kitchen & ~is_yandex & ~is_no_payment][cost_col].sum() if cost_col in df.columns else 0
+    kitchen_cost_percent = (kitchen_cost / kitchen_revenue * 100) if kitchen_revenue > 0 else 0
+    
+    # 3. Себестоимость Яндекса (только Яндекс)
+    yandex_cost = df[is_yandex][cost_col].sum() if cost_col in df.columns else 0
+    yandex_cost_percent = (yandex_cost / yandex_raw * 100) if yandex_raw > 0 else 0
+    
+    # 4. Общая себестоимость кухни (включая Яндекс, БЕЗ "(без оплаты)")
+    kitchen_total_cost = df[is_kitchen & ~is_no_payment][cost_col].sum() if cost_col in df.columns else 0
+    kitchen_delivery_revenue = kitchen_revenue + delivery_revenue
+    kitchen_total_cost_percent = (kitchen_total_cost / kitchen_delivery_revenue * 100) if kitchen_delivery_revenue > 0 else 0
+    
+    logger.info(f"Себестоимость бара: {bar_cost:.2f}₽ ({bar_cost_percent:.1f}%)")
+    logger.info(f"Себестоимость кухни: {kitchen_cost:.2f}₽ ({kitchen_cost_percent:.1f}%)")
+    logger.info(f"Себестоимость Яндекс: {yandex_cost:.2f}₽ ({yandex_cost_percent:.1f}%)")
+    logger.info(f"Себестоимость кухни общая: {kitchen_total_cost:.2f}₽ ({kitchen_total_cost_percent:.1f}%)")
+    
+    # 5. Общая себестоимость (все категории)
+    total_cost = bar_cost + kitchen_total_cost
+    total_revenue = bar_revenue + kitchen_revenue + delivery_revenue
+    total_cost_percent = (total_cost / total_revenue * 100) if total_revenue > 0 else 0
+    
+    logger.info(f"Общая себестоимость: {total_cost:.2f}₽ ({total_cost_percent:.1f}%)")
+    
+    # 6. Расходные накладные
+    writeoff_data = await calculate_writeoffs(date_from, date_to)
+    
     return {
         'bar_revenue': float(bar_revenue),
         'kitchen_revenue': float(kitchen_revenue),
@@ -252,7 +345,422 @@ async def calculate_revenue(data: list, date_from: str, date_to: str) -> Dict[st
         'yandex_commission': float(yandex_commission_percent),
         'yandex_raw': float(yandex_raw),
         'yandex_fee': float(yandex_fee),
+        # Себестоимость
+        'bar_cost': float(bar_cost),
+        'bar_cost_percent': float(bar_cost_percent),
+        'kitchen_cost': float(kitchen_cost),
+        'kitchen_cost_percent': float(kitchen_cost_percent),
+        'yandex_cost': float(yandex_cost),
+        'yandex_cost_percent': float(yandex_cost_percent),
+        'kitchen_total_cost': float(kitchen_total_cost),
+        'kitchen_total_cost_percent': float(kitchen_total_cost_percent),
+        # Общая себестоимость
+        'total_cost': float(total_cost),
+        'total_cost_percent': float(total_cost_percent),
+        # Расходные накладные
+        'writeoff_revenue': writeoff_data['writeoff_revenue'],
+        'writeoff_cost': writeoff_data.get('writeoff_cost', 0.0),
+        'writeoff_cost_percent': writeoff_data.get('writeoff_cost_percent', 0.0),
+        'writeoff_count': writeoff_data['writeoff_count'],
+        'days_without_writeoff': writeoff_data['days_without_writeoff'],
+        'total_days': writeoff_data['total_days'],
     }
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Новый отчёт: себестоимость по местам приготовления
+# ════════════════════════════════════════════════════════════════════════════
+async def analyze_cost_by_cooking_place(date_from: str, date_to: str) -> Dict[str, Any]:
+    """Рассчитать себестоимость бара, кухни и Яндекса за период"""
+
+    def _empty_result() -> Dict[str, Any]:
+        return {
+            'period_start': date_from,
+            'period_end': date_to,
+            'rows_total': 0,
+            'rows_filtered': 0,
+            'bar': {'revenue': 0.0, 'cost': 0.0, 'cost_percent': 0.0},
+            'kitchen': {'revenue': 0.0, 'cost': 0.0, 'cost_percent': 0.0},
+            'yandex': {
+                'gross_revenue': 0.0,
+                'net_revenue': 0.0,
+                'commission_percent': 0.0,
+                'commission_value': 0.0,
+                'cost': 0.0,
+                'cost_percent': 0.0,
+            },
+            'totals': {'revenue': 0.0, 'cost': 0.0, 'cost_percent': 0.0},
+        }
+
+    result = _empty_result()
+    raw_data = await get_revenue_report(date_from, date_to)
+    if not raw_data:
+        logger.warning("Себестоимость по местам приготовления: отчёт пустой")
+        return result
+
+    df = pd.DataFrame(raw_data)
+    result['rows_total'] = len(df)
+    cost_col = "ProductCostBase.ProductCost"
+    discount_col = "DishDiscountSumInt"
+    sum_col = "DishSumInt"
+
+    for column in (cost_col, discount_col, sum_col):
+        if column in df.columns:
+            df[column] = pd.to_numeric(df[column], errors='coerce').fillna(0)
+        else:
+            df[column] = 0.0
+
+    pay_types_col = "PayTypes.Combo" if "PayTypes.Combo" in df.columns else "PayTypes"
+    cooking_place_col = "CookingPlace" if "CookingPlace" in df.columns else "CookingPlaceType"
+
+    missing_columns = [col for col in (pay_types_col, cooking_place_col) if col not in df.columns]
+    if missing_columns:
+        raise ValueError(f"В отчете отсутствуют обязательные колонки: {missing_columns}")
+
+    df = df.copy()
+    df[pay_types_col] = df[pay_types_col].astype(str).str.strip()
+    df[cooking_place_col] = df[cooking_place_col].astype(str).str.strip()
+
+    dish_col = None
+    for candidate in ("DishName", "Dish"):
+        if candidate in df.columns:
+            dish_col = candidate
+            break
+
+    if "DeletedWithWriteoff" in df.columns:
+        df = df[df["DeletedWithWriteoff"] == "NOT_DELETED"].copy()
+    if "OrderDeleted" in df.columns:
+        df = df[df["OrderDeleted"] == "NOT_DELETED"].copy()
+
+    if "DishCategory" in df.columns:
+        df = df[~df["DishCategory"].isin(CATEGORY_EXCLUDE_FOR_COST)].copy()
+
+    no_payment_mask = df[pay_types_col].str.lower() == NO_PAYMENT_LABEL.lower()
+    df = df[~no_payment_mask].copy()
+
+    result['rows_filtered'] = len(df)
+    if df.empty:
+        logger.warning("Себестоимость по местам приготовления: после фильтров строк нет")
+        return result
+
+    yandex_mask = df[pay_types_col].str.contains(YANDEX_PAYMENT_KEYWORD, case=False, na=False)
+    place_series = df[cooking_place_col].str.lower()
+    bar_mask = place_series.isin(BAR_COOKING_PLACES) & ~yandex_mask
+    kitchen_mask = place_series.isin(KITCHEN_COOKING_PLACES) & ~yandex_mask
+    delivery_mask = yandex_mask
+
+    df["RevenueWithDiscount"] = df[discount_col]
+    yandex_commission_percent = await get_yandex_commission()
+    commission_rate = yandex_commission_percent / 100 if yandex_commission_percent else 0.0
+    df["NetYandexRevenue"] = df[sum_col] * (1 - commission_rate)
+
+    def _calc_group(mask, revenue_col):
+        revenue = float(df.loc[mask, revenue_col].sum())
+        cost = float(df.loc[mask, cost_col].sum())
+        percent = float((cost / revenue * 100) if revenue else 0.0)
+        return revenue, cost, percent
+
+    bar_revenue, bar_cost, bar_percent = _calc_group(bar_mask, "RevenueWithDiscount")
+    kitchen_revenue, kitchen_cost, kitchen_percent = _calc_group(kitchen_mask, "RevenueWithDiscount")
+
+    yandex_gross = float(df.loc[delivery_mask, sum_col].sum())
+    yandex_net = float(df.loc[delivery_mask, "NetYandexRevenue"].sum())
+    yandex_commission_value = yandex_gross - yandex_net
+    yandex_cost = float(df.loc[delivery_mask, cost_col].sum())
+    yandex_cost_percent = float((yandex_cost / yandex_net * 100) if yandex_net else 0.0)
+
+    total_revenue = bar_revenue + kitchen_revenue + yandex_net
+    total_cost = bar_cost + kitchen_cost + yandex_cost
+    total_percent = float((total_cost / total_revenue * 100) if total_revenue else 0.0)
+    kitchen_with_delivery_revenue = kitchen_revenue + yandex_net
+    kitchen_with_delivery_cost = kitchen_cost + yandex_cost
+    kitchen_with_delivery_percent = (
+        float((kitchen_with_delivery_cost / kitchen_with_delivery_revenue * 100))
+        if kitchen_with_delivery_revenue
+        else 0.0
+    )
+
+    def _build_dish_stats(segment_mask, revenue_column):
+        if not dish_col:
+            return {'full': [], 'top_positive': [], 'top_negative': []}
+
+        mask = segment_mask & df[dish_col].notna()
+        if not mask.any():
+            return {'full': [], 'top_positive': [], 'top_negative': []}
+
+        available_cols = [dish_col, revenue_column, cost_col]
+        aggregated = (
+            df.loc[mask, available_cols]
+            .groupby(dish_col, as_index=False)
+            .sum()
+            .rename(columns={
+                dish_col: 'name',
+                revenue_column: 'revenue',
+                cost_col: 'cost',
+            })
+        )
+        aggregated['margin'] = aggregated['revenue'] - aggregated['cost']
+        aggregated['cost_percent'] = aggregated.apply(
+            lambda row: (row['cost'] / row['revenue'] * 100) if row['revenue'] else 0.0,
+            axis=1,
+        )
+        total_segment_cost = aggregated['cost'].sum()
+        aggregated['cost_share_percent'] = (
+            aggregated['cost'] / total_segment_cost * 100 if total_segment_cost else 0.0
+        )
+
+        def _to_python_records(frame):
+            return [
+                {
+                    'name': str(row['name']).strip(),
+                    'revenue': float(row['revenue']),
+                    'cost': float(row['cost']),
+                    'margin': float(row['margin']),
+                    'cost_percent': float(row['cost_percent']),
+                    'cost_share_percent': float(row['cost_share_percent']),
+                }
+                for _, row in frame.iterrows()
+            ]
+
+        full_records = _to_python_records(aggregated.sort_values(by='cost', ascending=False))
+
+        positives = [record for record in full_records if record['margin'] > 0]
+        negatives = [
+            record
+            for record in full_records
+            if record['cost_percent'] >= 35.0
+        ]
+
+        def _negative_score(record: Dict[str, Any]) -> float:
+            # Комбинированный показатель "плохо": большая себестоимость и высокий процент
+            return record['cost'] * record['cost_percent']
+
+        return {
+            'full': full_records,
+            'top_positive': sorted(positives, key=lambda x: x['margin'], reverse=True)[:5],
+            'top_negative': sorted(negatives, key=_negative_score, reverse=True)[:5],
+        }
+
+    dishes_payload = {}
+    if dish_col:
+        dishes_payload['bar'] = _build_dish_stats(bar_mask, "RevenueWithDiscount")
+        dishes_payload['kitchen'] = _build_dish_stats(kitchen_mask, "RevenueWithDiscount")
+        dishes_payload['delivery'] = _build_dish_stats(delivery_mask, "NetYandexRevenue")
+
+    result['bar'] = {'revenue': bar_revenue, 'cost': bar_cost, 'cost_percent': bar_percent}
+    result['kitchen'] = {'revenue': kitchen_revenue, 'cost': kitchen_cost, 'cost_percent': kitchen_percent}
+    result['yandex'] = {
+        'gross_revenue': yandex_gross,
+        'net_revenue': yandex_net,
+        'commission_percent': yandex_commission_percent,
+        'commission_value': yandex_commission_value,
+        'cost': yandex_cost,
+        'cost_percent': yandex_cost_percent,
+    }
+    result['totals'] = {
+        'revenue': total_revenue,
+        'cost': total_cost,
+        'cost_percent': total_percent,
+    }
+    if dishes_payload:
+        result['dishes'] = dishes_payload
+
+    plan_comparison = {}
+    plan_summary = None
+    try:
+        plan_summary = await get_cost_plan_summary(date_from, date_to)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Не удалось получить планы по себестоимости: %s", exc)
+
+    if plan_summary:
+        aggregated_plan = plan_summary.get('aggregated') or {}
+
+        def _build_plan_entry(plan_value: float, fact_value: float) -> Dict[str, float]:
+            delta = fact_value - plan_value
+            delta_percent = (delta / plan_value * 100) if plan_value else None
+            return {
+                'plan': float(plan_value),
+                'fact': float(fact_value),
+                'delta': float(delta),
+                'delta_percent': float(delta_percent) if delta_percent is not None else None,
+            }
+
+        bar_plan_value = aggregated_plan.get('bar')
+        if bar_plan_value is not None:
+            plan_comparison['bar'] = _build_plan_entry(bar_plan_value, bar_percent)
+
+        kitchen_plan_value = aggregated_plan.get('kitchen')
+        if kitchen_plan_value is not None:
+            plan_comparison['kitchen_with_delivery'] = _build_plan_entry(
+                kitchen_plan_value,
+                kitchen_with_delivery_percent,
+            )
+
+        if plan_comparison:
+            result['plan_comparison'] = plan_comparison
+            result['plan_months'] = plan_summary.get('monthly', [])
+
+    logger.info(
+        "Себестоимость (бар/кухня/Яндекс): бар %.0f₽/%.0f₽, кухня %.0f₽/%.0f₽, Яндекс чистая %.0f₽",
+        bar_revenue,
+        bar_cost,
+        kitchen_revenue,
+        kitchen_cost,
+        yandex_net,
+    )
+
+    return result
+
+
+def format_cost_by_cooking_place_report(result: Dict[str, Any]) -> str:
+    """Сформировать текстовый отчёт для Телеграма"""
+
+    def _fmt_currency(value: float) -> str:
+        return f"{value:,.2f} ₽".replace(",", " ")
+
+    def _fmt_percent(value: float) -> str:
+        return f"{value:.2f}%"
+
+    def _fmt_date(date_str: str) -> str:
+        try:
+            return datetime.strptime(date_str, "%Y-%m-%d").strftime("%d.%m.%Y")
+        except Exception:
+            return date_str or "?"
+
+    bar = result.get('bar', {})
+    kitchen = result.get('kitchen', {})
+    yandex = result.get('yandex', {})
+    totals = result.get('totals', {})
+    plan_comparison = result.get('plan_comparison')
+    dept_salaries = result.get('dept_salaries')
+
+    lines = [
+        "📑 *Себестоимость по категориям*",
+        f"Период: {_fmt_date(result.get('period_start'))} — {_fmt_date(result.get('period_end'))}",
+        "",
+        "*Бар*",
+        f"• Выручка: {_fmt_currency(bar.get('revenue', 0.0))}",
+        f"• Себестоимость: {_fmt_currency(bar.get('cost', 0.0))} ({_fmt_percent(bar.get('cost_percent', 0.0))})",
+        "",
+        "*Кухня (вкл. пиццу)*",
+        f"• Выручка: {_fmt_currency(kitchen.get('revenue', 0.0))}",
+        f"• Себестоимость: {_fmt_currency(kitchen.get('cost', 0.0))} ({_fmt_percent(kitchen.get('cost_percent', 0.0))})",
+        "",
+        "*Яндекс*",
+        f"• Выручка (грязная): {_fmt_currency(yandex.get('gross_revenue', 0.0))}",
+        f"• Комиссия ({yandex.get('commission_percent', 0.0):.2f}%): {_fmt_currency(yandex.get('commission_value', 0.0))}",
+        f"• Выручка (чистая): {_fmt_currency(yandex.get('net_revenue', 0.0))}",
+        f"• Себестоимость: {_fmt_currency(yandex.get('cost', 0.0))} ({_fmt_percent(yandex.get('cost_percent', 0.0))})",
+        "",
+        "*Итого*",
+        f"• Выручка: {_fmt_currency(totals.get('revenue', 0.0))}",
+        f"• Себестоимость: {_fmt_currency(totals.get('cost', 0.0))} ({_fmt_percent(totals.get('cost_percent', 0.0))})",
+    ]
+
+    if plan_comparison:
+        def _fmt_signed_percent(value: float) -> str:
+            sign = "+" if value > 0 else ""
+            return f"{sign}{value:.2f}%"
+
+        lines.append("")
+        lines.append("*План по проценту себестоимости*")
+        for key, label in (
+            ('bar', 'Бар'),
+            ('kitchen_with_delivery', 'Кухня + доставка'),
+        ):
+            entry = plan_comparison.get(key)
+            if not entry:
+                continue
+            line = (
+                f"• {label}: план {_fmt_percent(entry['plan'])}, "
+                f"факт {_fmt_percent(entry['fact'])}, "
+                f"Δ {_fmt_signed_percent(entry['delta'])} п.п."
+            )
+            delta_percent = entry.get('delta_percent')
+            if delta_percent is not None:
+                line += f" ({_fmt_signed_percent(delta_percent)} от плана)"
+            lines.append(line)
+
+    if isinstance(dept_salaries, dict):
+        def _append_salary_line(label: str, value: float | None) -> float:
+            if value is None:
+                return 0.0
+            lines.append(f"• {label}: {_fmt_currency(value)}")
+            return float(value)
+
+        lines.append("")
+        lines.append("*ФОТ по цехам*")
+        total_salary = 0.0
+        for dept in DEPARTMENTS:
+            total_salary += _append_salary_line(dept, dept_salaries.get(dept))
+
+        other_keys = [key for key in dept_salaries.keys() if key not in (*DEPARTMENTS, 'Не распределено')]
+        total_salary += _append_salary_line('Не распределено', dept_salaries.get('Не распределено'))
+        for extra in sorted(other_keys):
+            total_salary += _append_salary_line(extra, dept_salaries.get(extra))
+
+        if total_salary > 0:
+            lines.append(f"• Итого ФОТ: {_fmt_currency(total_salary)}")
+
+    dishes = result.get('dishes') or {}
+    if dishes:
+        def _append_top_block(segment_key: str, title: str):
+            segment = dishes.get(segment_key)
+            if not segment:
+                return
+            lines.append("")
+            lines.append(f"*{title}: ТОП блюд*")
+            for heading, key, emoji in (
+                ("Лучшие (маржа +)", 'top_positive', "✅"),
+                ("Худшие (маржа -)", 'top_negative', "⚠️"),
+            ):
+                entries = segment.get(key) or []
+                if not entries:
+                    lines.append(f"{emoji} {heading}: нет данных")
+                    continue
+                lines.append(f"{emoji} {heading}:")
+                for item in entries:
+                    lines.append(
+                        "• {name}: себестоимость {cost}, выручка {rev}, маржа {margin} ({share:.1f}% доля)".format(
+                            name=item['name'],
+                            cost=_fmt_currency(item['cost']),
+                            rev=_fmt_currency(item['revenue']),
+                            margin=_fmt_currency(item['margin']),
+                            share=item.get('cost_share_percent', 0.0),
+                        )
+                    )
+
+        _append_top_block('bar', 'Бар')
+        _append_top_block('kitchen', 'Кухня (вкл. пиццу)')
+        _append_top_block('delivery', 'Доставка (Яндекс)')
+
+    return "\n".join(lines)
+
+
+def format_dishes_table(records: list[Dict[str, Any]], limit: int | None = None) -> str:
+    """Вернуть табличное представление списка блюд"""
+
+    if not records:
+        return "нет данных"
+
+    header = f"{'Блюдо':<32} | {'Себестоим.':>12} | {'Выручка':>12} | {'Маржа':>12} | {'Доля%':>7} | {'% себ.':>7}"
+    lines = [header, "-" * len(header)]
+
+    def _format_number(value: float) -> str:
+        return f"{value:,.2f}".replace(",", " ")
+
+    for idx, item in enumerate(records):
+        if limit is not None and idx >= limit:
+            break
+        cost = _format_number(item['cost'])
+        revenue = _format_number(item['revenue'])
+        margin = _format_number(item['margin'])
+        lines.append(
+            f"{item['name']:<32} | {cost:>12} | {revenue:>12} | {margin:>12} | "
+            f"{item.get('cost_share_percent', 0.0):>6.1f} | {item.get('cost_percent', 0.0):>6.1f}"
+        )
+
+    return "\n".join(lines)
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -262,6 +770,9 @@ async def calculate_writeoffs(date_from: str, date_to: str) -> Dict[str, Any]:
     """
     Получить данные по расходным накладным за период
     
+    Выручка берется из API документов (outgoingInvoice)
+    Себестоимость берется из OLAP отчета по проводкам (TRANSACTIONS)
+    
     Args:
         date_from: дата начала в формате YYYY-MM-DD
         date_to: дата конца в формате YYYY-MM-DD
@@ -270,11 +781,18 @@ async def calculate_writeoffs(date_from: str, date_to: str) -> Dict[str, Any]:
         словарь с данными по расходным накладным
     """
     try:
+        # 1. Получаем выручку из API документов
         writeoff_docs = await get_writeoff_documents(date_from, date_to)
-        writeoff_sum = sum(doc['sum'] for doc in writeoff_docs)
+        writeoff_revenue = sum(doc['sum'] for doc in writeoff_docs)  # Выручка
         writeoff_count = len(writeoff_docs)
         
-        # Считаем дни без расходных накладных
+        # 2. Получаем себестоимость через OLAP TRANSACTIONS
+        writeoff_cost = await get_writeoff_cost_olap(date_from, date_to)
+        
+        # 3. Рассчитываем процент себестоимости
+        writeoff_cost_percent = (writeoff_cost / writeoff_revenue * 100) if writeoff_revenue > 0 else 0
+        
+        # 4. Считаем дни без расходных накладных
         writeoff_dates = set(doc['date'].date() for doc in writeoff_docs)
         from_dt = datetime.strptime(date_from, "%Y-%m-%d")
         to_dt = datetime.strptime(date_to, "%Y-%m-%d")
@@ -282,11 +800,13 @@ async def calculate_writeoffs(date_from: str, date_to: str) -> Dict[str, Any]:
         days_with_writeoff = len(writeoff_dates)
         days_without_writeoff = total_days - days_with_writeoff
         
-        logger.info(f"Расходные накладные: {writeoff_sum:.2f}₽ ({writeoff_count} шт.)")
-        logger.info(f"Дней без расходных накладных: {days_without_writeoff} из {total_days}")
+        logger.info(f"Расходные накладные: выручка {writeoff_revenue:.2f}₽, себестоимость {writeoff_cost:.2f}₽ ({writeoff_cost_percent:.1f}%)")
+        logger.info(f"Количество: {writeoff_count} шт., дней без накладных: {days_without_writeoff} из {total_days}")
         
         return {
-            'writeoff_sum': float(writeoff_sum),
+            'writeoff_revenue': float(writeoff_revenue),
+            'writeoff_cost': float(writeoff_cost),
+            'writeoff_cost_percent': float(writeoff_cost_percent),
             'writeoff_count': writeoff_count,
             'days_without_writeoff': days_without_writeoff,
             'total_days': total_days
@@ -294,7 +814,9 @@ async def calculate_writeoffs(date_from: str, date_to: str) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Ошибка получения расходных накладных: {e}")
         return {
-            'writeoff_sum': 0.0,
+            'writeoff_revenue': 0.0,
+            'writeoff_cost': 0.0,
+            'writeoff_cost_percent': 0.0,
             'writeoff_count': 0,
             'days_without_writeoff': 0,
             'total_days': 0
@@ -399,47 +921,88 @@ async def calculate_salary_by_departments(date_from: str, date_to: str) -> Dict[
         return result
 
 
-def format_revenue_report(revenue_data: Dict[str, Any], date_from: str, date_to: str, dept_salaries: Dict[str, float] = None) -> str:
-    """
-    Форматировать отчет по выручке для отправки пользователю
-    
-    Args:
-        revenue_data: данные выручки из calculate_revenue()
-        date_from: дата начала периода в формате YYYY-MM-DD
-        date_to: дата конца периода в формате YYYY-MM-DD
-        dept_salaries: ФОТ по цехам из calculate_salary_by_departments()
-        
-    Returns:
-        отформатированная строка для Telegram
-    """
-    from datetime import datetime
-    
-    # Конвертируем даты для отображения
+def format_revenue_report(
+    revenue_data: Dict[str, Any],
+    date_from: str,
+    date_to: str,
+    dept_salaries: Dict[str, float] | None = None,
+) -> str:
+    """Сформировать текст отчёта по выручке для Телеграма."""
+
+    def _fmt_currency(value: float) -> str:
+        return f"{value:,.2f} ₽".replace(",", " ")
+
+    def _fmt_percent(value: float) -> str:
+        return f"{value:.1f}%"
+
     date_from_display = datetime.strptime(date_from, "%Y-%m-%d").strftime("%d.%m.%Y")
     date_to_display = datetime.strptime(date_to, "%Y-%m-%d").strftime("%d.%m.%Y")
-    
-    total = revenue_data['bar_revenue'] + revenue_data['kitchen_revenue'] + revenue_data['delivery_revenue']
-    
-    # Логирование для проверки расчетов
-    logger.info(f"📊 Расчет ИТОГО:")
-    logger.info(f"  Бар: {revenue_data['bar_revenue']:.2f}₽")
-    logger.info(f"  Кухня: {revenue_data['kitchen_revenue']:.2f}₽")
-    logger.info(f"  Доставка: {revenue_data['delivery_revenue']:.2f}₽")
-    logger.info(f"  ИТОГО: {total:.2f}₽")
-    
-    text = (
-        f"💰 *ОТЧЕТ ПО ВЫРУЧКЕ*\n"
-        f"Период: {date_from_display} - {date_to_display}\n\n"
-        f"🍹 *БАР*\n"
-        f"  Выручка: {revenue_data['bar_revenue']:,.2f} ₽\n\n"
-        f"🍕 *КУХНЯ* (Кухня + Пицца)\n"
-        f"  Выручка: {revenue_data['kitchen_revenue']:,.2f} ₽\n\n"
-        f"🚗 *ДОСТАВКА* (Яндекс)\n"
-        f"  Выручка до вычета: {revenue_data['yandex_raw']:,.2f} ₽\n"
-        f"  Комиссия ({revenue_data['yandex_commission']}%): -{revenue_data['yandex_fee']:,.2f} ₽\n"
-        f"  Выручка после вычета: {revenue_data['delivery_revenue']:,.2f} ₽\n\n"
-        f"💵 *ИТОГО ВЫРУЧКА*\n"
-        f"  {total:,.2f} ₽\n"
+
+    total_revenue = (
+        revenue_data['bar_revenue']
+        + revenue_data['kitchen_revenue']
+        + revenue_data['delivery_revenue']
     )
-    
-    return text.replace(',', ' ')
+
+    logger.info("📊 Расчет ИТОГО:")
+    logger.info("  Бар: %.2f₽", revenue_data['bar_revenue'])
+    logger.info("  Кухня: %.2f₽", revenue_data['kitchen_revenue'])
+    logger.info("  Доставка: %.2f₽", revenue_data['delivery_revenue'])
+    logger.info("  ИТОГО: %.2f₽", total_revenue)
+
+    lines = [
+        "💰 *ОТЧЕТ ПО ВЫРУЧКЕ*",
+        f"Период: {date_from_display} - {date_to_display}",
+        "",
+        "🍹 *БАР*",
+        f"  Выручка: {_fmt_currency(revenue_data['bar_revenue'])}",
+        f"  Себестоимость: {_fmt_currency(revenue_data['bar_cost'])} ({_fmt_percent(revenue_data['bar_cost_percent'])})",
+        "",
+        "🍕 *КУХНЯ* (Кухня + Пицца)",
+        f"  Выручка: {_fmt_currency(revenue_data['kitchen_revenue'])}",
+        f"  Себестоимость: {_fmt_currency(revenue_data['kitchen_cost'])} ({_fmt_percent(revenue_data['kitchen_cost_percent'])})",
+        "",
+        "🚗 *ДОСТАВКА* (Яндекс)",
+        f"  Выручка до вычета: {_fmt_currency(revenue_data['yandex_raw'])}",
+        f"  Комиссия ({revenue_data['yandex_commission']:.1f}%): -{_fmt_currency(revenue_data['yandex_fee'])}",
+        f"  Выручка после вычета: {_fmt_currency(revenue_data['delivery_revenue'])}",
+        f"  Себестоимость: {_fmt_currency(revenue_data['yandex_cost'])} ({_fmt_percent(revenue_data['yandex_cost_percent'])})",
+        "",
+        "📊 *КУХНЯ ОБЩАЯ* (с доставкой)",
+        f"  Себестоимость: {_fmt_currency(revenue_data['kitchen_total_cost'])} ({_fmt_percent(revenue_data['kitchen_total_cost_percent'])})",
+        "",
+        "💵 *ИТОГО ВЫРУЧКА*",
+        f"  Выручка: {_fmt_currency(total_revenue)}",
+        f"  Себестоимость: {_fmt_currency(revenue_data['total_cost'])} ({_fmt_percent(revenue_data['total_cost_percent'])})",
+        "",
+        "📦 *РАСХОДНЫЕ НАКЛАДНЫЕ*",
+        f"  Выручка: {_fmt_currency(revenue_data.get('writeoff_revenue', 0.0))}",
+        f"  Себестоимость: {_fmt_currency(revenue_data.get('writeoff_cost', 0.0))} ({_fmt_percent(revenue_data.get('writeoff_cost_percent', 0.0))})",
+        f"  Количество: {revenue_data.get('writeoff_count', 0)} шт.",
+        f"  Дней без накладных: {revenue_data.get('days_without_writeoff', 0)} из {revenue_data.get('total_days', 0)}",
+    ]
+
+    if isinstance(dept_salaries, dict) and dept_salaries:
+        lines.append("")
+        lines.append("🏭 *ФОТ по цехам*")
+        total_salary = 0.0
+
+        def _append_salary(label: str, value: float | None) -> None:
+            nonlocal total_salary
+            if value is None:
+                return
+            total_salary += float(value)
+            lines.append(f"  {label}: {_fmt_currency(value)}")
+
+        for dept in DEPARTMENTS:
+            _append_salary(dept, dept_salaries.get(dept))
+
+        extra_keys = [key for key in dept_salaries.keys() if key not in (*DEPARTMENTS, 'Не распределено')]
+        _append_salary('Не распределено', dept_salaries.get('Не распределено'))
+        for extra in sorted(extra_keys):
+            _append_salary(extra, dept_salaries.get(extra))
+
+        if total_salary > 0:
+            lines.append(f"  Итого ФОТ: {_fmt_currency(total_salary)}")
+
+    return "\n".join(lines)

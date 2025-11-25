@@ -7,6 +7,7 @@ import logging
 from utils.db_stores import get_pool
 
 logger = logging.getLogger(__name__)
+DEFAULT_YANDEX_COMMISSION = 42.0  # Временный дефолт, пока не задано в БД
 
 
 async def get_yandex_commission() -> float:
@@ -15,7 +16,13 @@ async def get_yandex_commission() -> float:
     Возвращает float (например, 25.5 для 25.5%)
     По умолчанию 0.0 если не установлен
     """
-    pool = get_pool()
+    try:
+        pool = get_pool()
+    except RuntimeError:
+        logger.warning(
+            "Пул БД не инициализирован, используем %.2f%% комиссии Яндекса", DEFAULT_YANDEX_COMMISSION
+        )
+        return DEFAULT_YANDEX_COMMISSION
     async with pool.acquire() as conn:
         result = await conn.fetchval(
             """
@@ -23,8 +30,11 @@ async def get_yandex_commission() -> float:
             """
         )
         if result is None:
-            logger.info("Комиссия Яндекса не установлена, используем 0%")
-            return 0.0
+            logger.info(
+                "Комиссия Яндекса не установлена, используем дефолт %.2f%%",
+                DEFAULT_YANDEX_COMMISSION,
+            )
+            return DEFAULT_YANDEX_COMMISSION
         return float(result)
 
 

@@ -2,6 +2,7 @@
 # ────────────── Импорт библиотек и общих функций ──────────────
 import logging
 from aiogram import Router, F, types
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 from states import RegisterStates
@@ -248,3 +249,13 @@ async def load_accounts_command(message: Message):
         await message.answer("✅ Счета успешно загружены в таблицу accounts.")
     except Exception as e:
         await safe_send_error(message, e)
+
+
+@router.message(Command("cancel"))
+async def cancel_any_state(message: Message, state: FSMContext):
+    """Глобальная команда отмены — сбрасывает FSM и возвращает главное меню."""
+    await state.clear()
+    await message.answer(
+        "❌ Действие отменено. Главное меню:",
+        reply_markup=main_menu_keyboard(message.from_user.id),
+    )

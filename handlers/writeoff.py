@@ -3,6 +3,7 @@
 
 import logging
 import asyncio
+from typing import Optional
 from aiogram import Bot, Router, F, types
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
@@ -10,8 +11,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from sqlalchemy import select
 from db.employees_db import async_session
 from handlers.base_document import BaseDocumentHandler, _normalize_unit
-from handlers.template_creation import STORE_CACHE, preload_stores
-from handlers.common import get_unit_name_by_id
+from handlers.common import get_unit_name_by_id, _get_store_id, preload_stores
 from iiko.iiko_auth import get_auth_token, get_base_url
 import httpx
 from datetime import datetime
@@ -22,6 +22,7 @@ from services.db_queries import DBQueries
 
 ## ────────────── Логгер и роутер для aiogram ──────────────
 router = Router()
+logger = logging.getLogger(__name__)
 
 STORE_PAYMENT_FILTERS = DOC_CONFIG["writeoff"]["stores"]
 
@@ -30,7 +31,7 @@ STORE_PAYMENT_FILTERS = DOC_CONFIG["writeoff"]["stores"]
 class WriteoffStates(StatesGroup):
     Store = State()
     PaymentType = State()
-    Comment = State()
+    Reason = State()
     AddItems = State()
     Quantity = State()
 
@@ -48,21 +49,41 @@ class WriteoffHandler(BaseDocumentHandler):
 
     async def get_doc_type_keyboard(self, data: dict) -> InlineKeyboardMarkup:
         store_name = data.get("store_name", "")
-        types_list = STORE_PAYMENT_FILTERS.get(store_name, [])
-        
+        raw_types = STORE_PAYMENT_FILTERS.get(store_name, [])
+        if not raw_types:
+            logger.warning("WRITEOFF store %s has no payment types configured", store_name)
+            return InlineKeyboardMarkup(inline_keyboard=[])
+
+        type_names = list(dict.fromkeys(raw_types))  # preserve order, drop duplicates
+
         async with async_session() as session:
-            accounts = await DBQueries.get_accounts_by_names(types_list)
-        
-        return InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=acc.name, callback_data=f"w_type:{acc.id}")]
-            for acc in accounts
-        ])
+            accounts = await DBQueries.get_accounts_by_names(type_names)
+
+        by_name = {}
+        for acc in accounts:
+            by_name.setdefault(acc.name, acc)
+
+        buttons = []
+        for name in type_names:
+            acc = by_name.get(name)
+            if not acc:
+                logger.warning("WRITEOFF account %s missing in DB", name)
+                continue
+            buttons.append([InlineKeyboardButton(text=acc.name, callback_data=f"w_type:{acc.id}")])
+
+        logger.info(
+            "WRITEOFF types for store %s: %s (final buttons: %d)",
+            store_name,
+            type_names,
+            len(buttons)
+        )
+
+        return InlineKeyboardMarkup(inline_keyboard=buttons)
 
     async def format_header(self, data: dict) -> str:
         store = data.get("store_name", "—")
         account = data.get("account_name", "—")
-        reason = data.get("reason", "—")
-        comment = data.get("comment", "—")
+        reason = data.get("reason") or "—"
         author = data.get("user_fullname", "—")
 
         return (
@@ -70,7 +91,6 @@ class WriteoffHandler(BaseDocumentHandler):
             f"🏬 <b>Склад:</b> {store}\n"
             f"📂 <b>Тип списания:</b> {account}\n"
             f"📝 <b>Причина:</b> {reason}\n"
-            f"💬 <b>Комментарий:</b> {comment}\n"
             f"👤 <b>Сотрудник:</b> {author}"
         )
 
@@ -78,6 +98,43 @@ class WriteoffHandler(BaseDocumentHandler):
 
 ## ────────────── Экземпляр обработчика ──────────────
 writeoff_handler = WriteoffHandler()
+
+
+async def _refresh_header(state: FSMContext, bot: Bot, chat_id: int) -> None:
+    """Re-render summary message with the current FSM data."""
+    data = await state.get_data()
+    header_id = data.get("header_msg_id")
+    if not header_id:
+        logger.warning("WRITEOFF header message is not set yet")
+        return
+    await writeoff_handler.update_header(bot, chat_id, header_id, data)
+
+
+async def _set_prompt_message(
+    state: FSMContext,
+    bot: Bot,
+    chat_id: int,
+    text: str,
+    reply_markup: Optional[InlineKeyboardMarkup] = None,
+):
+    """Ensure there is a single prompt message under the summary."""
+    data = await state.get_data()
+    prompt_id = data.get("prompt_msg_id")
+    if prompt_id:
+        try:
+            await bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=prompt_id,
+                text=text,
+                reply_markup=reply_markup,
+            )
+            return
+        except Exception as exc:
+            logger.warning("WRITEOFF failed to edit prompt message: %s", exc)
+            prompt_id = None
+
+    msg = await bot.send_message(chat_id, text, reply_markup=reply_markup)
+    await state.update_data(prompt_msg_id=msg.message_id)
 
 
 
@@ -91,8 +148,10 @@ async def start_writeoff(callback: types.CallbackQuery, state: FSMContext):
     """
     await preload_stores()
     await state.clear()
+    logger.info("WRITEOFF start requested by user_id=%s chat_id=%s", callback.from_user.id, callback.message.chat.id)
     keyboard = await writeoff_handler.get_store_keyboard({})
     await state.set_state(WriteoffStates.Store)
+    await state.update_data(prompt_msg_id=callback.message.message_id)
     await callback.message.edit_text("🏬 С какого склада списываем?", reply_markup=keyboard)
 
 
@@ -102,19 +161,31 @@ async def choose_store(callback: types.CallbackQuery, state: FSMContext):
     Обработка выбора склада
     """
     store_name = callback.data.split(":")[1]
-    store_id = STORE_CACHE.get(f"{store_name} Пиццерия")
+    store_id = await _get_store_id(store_name)
     if not store_id:
         return await callback.answer("❌ Ошибка определения склада")
     
     await state.update_data(store_name=store_name, store_id=store_id)
+    logger.info("WRITEOFF store selected: %s (%s) by user %s", store_name, store_id, callback.from_user.id)
     tg_id = str(callback.from_user.id)
     full_name = await writeoff_handler.get_employee_name(tg_id)
-    await state.update_data(user_fullname=full_name, header_msg_id=callback.message.message_id)
+    await state.update_data(user_fullname=full_name, prompt_msg_id=None)
+
+    # Переводим предыдущее сообщение (с опросом) в summary
+    await callback.message.edit_text("📄 Акт списания\n(заполняется...)")
+    await state.update_data(header_msg_id=callback.message.message_id)
+    await _refresh_header(state, callback.message.bot, callback.message.chat.id)
 
     data = await state.get_data()
     await state.set_state(WriteoffStates.PaymentType)
     keyboard = await writeoff_handler.get_doc_type_keyboard(data)
-    await callback.message.edit_text("📂 Какой тип списания?", reply_markup=keyboard)
+    await _set_prompt_message(
+        state,
+        callback.message.bot,
+        callback.message.chat.id,
+        "📂 Какой тип списания?",
+        reply_markup=keyboard,
+    )
 
 
 @router.callback_query(F.data.startswith("w_type:"))
@@ -128,25 +199,34 @@ async def choose_type(callback: types.CallbackQuery, state: FSMContext):
         account = result.scalar_one()
     
     await state.update_data(account_name=account.name, account_id=type_id)
-    await state.set_state(WriteoffStates.Comment)
-    await callback.message.edit_text("📝 Введите причину списания:")
+    logger.info("WRITEOFF type selected: %s (%s)", account.name, type_id)
+    await _refresh_header(state, callback.message.bot, callback.message.chat.id)
+    await state.set_state(WriteoffStates.Reason)
+    await _set_prompt_message(
+        state,
+        callback.message.bot,
+        callback.message.chat.id,
+        "📝 Введите причину списания:",
+    )
 
 
-@router.message(WriteoffStates.Comment)
-async def get_reason(message: types.Message, state: FSMContext):
-    """
-    Ввод причины списания
-    """
+@router.message(WriteoffStates.Reason)
+async def set_reason(message: types.Message, state: FSMContext):
+    """Сохраняет причину списания и переходит к поиску товаров."""
     reason = message.text.strip()
+    logger.info("WRITEOFF reason set: %s", reason)
     await message.delete()
     await state.update_data(reason=reason)
-    
+
+    await _refresh_header(state, message.bot, message.chat.id)
+
     await state.set_state(WriteoffStates.AddItems)
-    msg = await message.answer("💬 Введите комментарий (или - чтобы оставить пустым):")
-    await state.update_data(reason_msg_id=msg.message_id)
-    
-    data = await state.get_data()
-    await writeoff_handler.update_header(message.bot, message.chat.id, data.get("header_msg_id"), data)
+    await _set_prompt_message(
+        state,
+        message.bot,
+        message.chat.id,
+        "🔍 Введите часть названия товара:",
+    )
 
 
 @router.message(WriteoffStates.AddItems)
@@ -157,7 +237,13 @@ async def search_products(message: types.Message, state: FSMContext):
     query = message.text.strip()
     await message.delete()
     
-    results = await DBQueries.search_nomenclature(query, types=["GOODS", "PREPARED"], parents=None)
+    results = await DBQueries.search_nomenclature(
+        query,
+        types=["GOODS", "PREPARED"],
+        parents=None,
+        use_parent_filters=False,
+    )
+    logger.info("WRITEOFF search query '%s' returned %d results", query, len(results))
     
     if not results:
         return await message.answer("🔎 Ничего не найдено.")
@@ -166,8 +252,24 @@ async def search_products(message: types.Message, state: FSMContext):
     await state.update_data(nomenclature_cache={r['id']: r for r in results})
     
     kb = writeoff_handler.build_item_keyboard(results, "w_item")
-    msg = await message.answer("Выберите товар:")
-    await state.update_data(search_msg_id=msg.message_id)
+    selection_msg_id = data.get("selection_msg_id")
+    if selection_msg_id:
+        try:
+            await message.bot.edit_message_text(
+                chat_id=message.chat.id,
+                message_id=selection_msg_id,
+                text="Выберите товар:",
+                reply_markup=kb,
+            )
+        except Exception as exc:
+            logger.warning("WRITEOFF unable to reuse selection message: %s", exc)
+            msg = await message.answer("Выберите товар:", reply_markup=kb)
+            selection_msg_id = msg.message_id
+    else:
+        msg = await message.answer("Выберите товар:", reply_markup=kb)
+        selection_msg_id = msg.message_id
+
+    await state.update_data(selection_msg_id=selection_msg_id)
 
 
 @router.callback_query(F.data.startswith("w_item:"))
@@ -182,6 +284,7 @@ async def select_item(callback: types.CallbackQuery, state: FSMContext):
     
     if not item:
         return await callback.answer("❌ Товар не найден")
+    logger.info("WRITEOFF item selected: %s (%s)", item.get("name"), item_id)
     
     unit = await get_unit_name_by_id(item["mainunit"])
     norm = _normalize_unit(unit)
@@ -193,7 +296,7 @@ async def select_item(callback: types.CallbackQuery, state: FSMContext):
     else:
         text = f"📏 Сколько {unit} для «{item['name']}»?"
     
-    await state.update_data(current_item=item)
+    await state.update_data(current_item=item, selection_msg_id=None, quantity_prompt_id=callback.message.message_id)
     await state.set_state(WriteoffStates.Quantity)
     await callback.message.edit_text(text)
 
@@ -227,32 +330,35 @@ async def save_quantity(message: types.Message, state: FSMContext):
     items = data.get("items", [])
     items.append(item)
     
-    await state.update_data(items=items, current_item=None)
+    prompt_id = data.get("quantity_prompt_id")
+    if prompt_id:
+        try:
+            await message.bot.delete_message(chat_id=message.chat.id, message_id=prompt_id)
+        except Exception:
+            logger.warning("WRITEOFF unable to remove quantity prompt")
+
+    await state.update_data(items=items, current_item=None, quantity_prompt_id=None)
+    logger.info(
+        "WRITEOFF quantity saved: item=%s qty=%s normalized=%s total_items=%d",
+        item.get("name"),
+        item.get("user_quantity"),
+        item.get("quantity"),
+        len(items)
+    )
     await message.delete()
-    
-    # Обновить заголовок
-    await writeoff_handler.update_header(
+
+    await _refresh_header(state, message.bot, message.chat.id)
+    await state.set_state(WriteoffStates.AddItems)
+    prompt_kb = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="✅ Отправить", callback_data="w_done")]]
+    )
+    await _set_prompt_message(
+        state,
         message.bot,
         message.chat.id,
-        data.get("header_msg_id"),
-        {**data, "items": items}
+        "🔍 Введите часть названия товара или нажмите 'Отправить'.",
+        reply_markup=prompt_kb,
     )
-    
-    # Предложить добавить ещё
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="➕ Добавить ещё", callback_data="w_more")],
-        [InlineKeyboardButton(text="✅ Завершить", callback_data="w_done")]
-    ])
-    await message.answer("Что дальше?", reply_markup=kb)
-
-
-@router.callback_query(F.data == "w_more")
-async def more_items(callback: types.CallbackQuery, state: FSMContext):
-    """
-    Добавить ещё товар
-    """
-    await state.set_state(WriteoffStates.AddItems)
-    await callback.message.edit_text("🔍 Введите часть названия товара:")
 
 
 @router.callback_query(F.data == "w_done")
@@ -272,7 +378,7 @@ async def finalize_writeoff(callback: types.CallbackQuery, state: FSMContext):
     document = {
         "dateIncoming": date_now,
         "status": "PROCESSED",
-        "comment": data.get("comment", ""),
+        "comment": data.get("reason", ""),
         "storeId": data.get("store_id"),
         "accountId": data.get("account_id"),
         "items": [
@@ -293,6 +399,12 @@ async def finalize_writeoff(callback: types.CallbackQuery, state: FSMContext):
     url = f"{get_base_url()}/resto/api/v2/documents/writeoff"
     params = {"key": token}
     
+    logger.info(
+        "WRITEOFF sending document: store=%s account=%s items=%d",
+        document.get("storeId"),
+        document.get("accountId"),
+        len(document.get("items", []))
+    )
     asyncio.create_task(_send_writeoff(bot, chat_id, msg_id, url, params, document))
     await state.clear()
 
@@ -306,7 +418,8 @@ async def _send_writeoff(bot: Bot, chat_id: int, msg_id: int, url: str, params: 
             response = await client.post(url, params=params, json=document, timeout=30.0)
             response.raise_for_status()
         
+        logger.info("WRITEOFF document sent successfully: doc=%s", document)
         await bot.send_message(chat_id, "✅ Акт списания успешно отправлен!")
     except Exception as e:
-        logging.error(f"Writeoff send error: {e}")
+        logger.exception("WRITEOFF send error")
         await bot.send_message(chat_id, f"❌ Ошибка отправки: {e}")

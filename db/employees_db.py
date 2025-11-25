@@ -36,7 +36,7 @@ class Employee(Base):
 ## ────────────── Логгер и подключение к БД ──────────────
 logger = logging.getLogger(__name__)
 logger.info("🔌 Подключение к PostgreSQL…")
-engine = create_async_engine(DATABASE_URL, echo=False)
+engine = create_async_engine(DATABASE_URL, echo=False, pool_pre_ping=True)
 async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 ## ────────────── Инициализация таблицы сотрудников ──────────────

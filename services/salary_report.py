@@ -1,37 +1,18 @@
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from calendar import monthrange
+import logging
+import httpx
+import xml.etree.ElementTree as ET
+
 from db.employees_db import Employee
 from services.cash_shift_report import get_cash_shifts_with_details
 from iiko.iiko_auth import get_auth_token, get_base_url
-import httpx
-import xml.etree.ElementTree as ET
-from calendar import monthrange
-import logging
+from utils.datetime_helpers import strip_tz, normalize_isoformat
 
-
-## ────────────── Логгер ──────────────
 logger = logging.getLogger(__name__)
 
-## ────────────── Вспомогательные функции для дат ──────────────
-def normalize_isoformat(dt_str: str) -> str:
-    if not dt_str:
-        return dt_str
-    if '.' in dt_str:
-        date_part, ms = dt_str.split('.', 1)
-        tz = ''
-        for sym in ['+', '-']:
-            if sym in ms:
-                ms, tz = ms.split(sym, 1)
-                tz = sym + tz
-                break
-        ms_digits = ''.join(filter(str.isdigit, ms))
-        ms_fixed = (ms_digits + '000000')[:6]
-        return f"{date_part}.{ms_fixed}{tz}"
-    return dt_str
-
-def _strip_tz(dt):
-    return dt.replace(tzinfo=None) if dt.tzinfo else dt
 
 ## ────────────── Загрузка сотрудников из БД ──────────────
 async def load_employees_from_db(session: AsyncSession):
@@ -202,16 +183,16 @@ async def get_salary_report(from_date: str, to_date: str, db_session: AsyncSessi
         for eid in employee_ids:
             emp_att = [
                 (
-                    _strip_tz(datetime.fromisoformat(normalize_isoformat(att.findtext("dateFrom")))),
-                    _strip_tz(datetime.fromisoformat(normalize_isoformat(att.findtext("dateTo"))))
+                    strip_tz(datetime.fromisoformat(normalize_isoformat(att.findtext("dateFrom")))),
+                    strip_tz(datetime.fromisoformat(normalize_isoformat(att.findtext("dateTo"))))
                 )
                 for att in attendances
                 if att.findtext("employeeId") == eid
             ]
             emp_revenue = 0
             for shift in cash_shifts:
-                s_start = _strip_tz(datetime.fromisoformat(normalize_isoformat(shift.get("openDate"))))
-                s_end = _strip_tz(datetime.fromisoformat(normalize_isoformat(shift.get("closeDate"))))
+                s_start = strip_tz(datetime.fromisoformat(normalize_isoformat(shift.get("openDate"))))
+                s_end = strip_tz(datetime.fromisoformat(normalize_isoformat(shift.get("closeDate"))))
                 for a_start, a_end in emp_att:
                     if max(a_start, s_start) < min(a_end, s_end):
                         emp_revenue += shift.get("payOrders", 0)

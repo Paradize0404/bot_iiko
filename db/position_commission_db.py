@@ -40,7 +40,7 @@ class PositionCommission(Base):
 
 ## ────────────── Логгер и подключение к БД ──────────────
 logger = logging.getLogger(__name__)
-engine = create_async_engine(DATABASE_URL, echo=False)
+engine = create_async_engine(DATABASE_URL, echo=False, pool_pre_ping=True)
 async_session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 ## ────────────── Инициализация таблицы ──────────────

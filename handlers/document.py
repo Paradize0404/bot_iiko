@@ -2,12 +2,10 @@
 ## ────────────── Импорт библиотек и общих функций ──────────────
 from aiogram import Router, F, types
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import Message
 from keyboards.main_keyboard import get_document_type_keyboard
-from handlers.common import get_template_keyboard
 from handlers.writeoff import start_writeoff 
 from handlers.invoice import start_invoice
-from config import ADMIN_IDS
 
 ## ────────────── Логгер и роутер для aiogram ──────────────
 router = Router()
@@ -53,19 +51,8 @@ async def forward_to_invoice_template(callback: types.CallbackQuery, state: FSMC
     """
     Показывает меню выбора действия для расходной накладной по шаблону
     """
-    user_id = callback.from_user.id
-
-    if user_id in ADMIN_IDS:
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📋 По шаблону", callback_data="prep:by_template")],
-            [InlineKeyboardButton(text="🛠 Создать шаблон", callback_data="prep:create_template")]
-        ])
-        await callback.message.edit_text("Выберите действие для расходной накладной:", reply_markup=keyboard)
-        await callback.answer()
-    else:
-        # Для обычных пользователей сразу показываем список шаблонов
-        from handlers.use_template import show_templates
-        await show_templates(callback)
+    from handlers.use_template import show_templates
+    await show_templates(callback)
 
 
 

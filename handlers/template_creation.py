@@ -6,7 +6,7 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from sqlalchemy.dialects.postgresql import insert
 from utils.telegram_helpers import edit_or_send
-from config import PARENT_FILTERS, STORE_NAME_MAP
+from config import PARENT_FILTERS, STORE_NAME_MAP, ADMIN_IDS
 from services.db_queries import DBQueries
 from handlers.common import (
     PreparationTemplate,              # Модель шаблона приготовления
@@ -17,15 +17,128 @@ from handlers.common import (
     search_nomenclature,              # Поиск номенклатуры
     search_suppliers,                 # Поиск поставщиков
     STORE_CACHE,                      # Кэш складов
+    list_templates,
 )
 from db.employees_db import async_session
+from sqlalchemy import delete
+from functools import wraps
+import inspect
 import logging, pprint
+import secrets
+from urllib.parse import quote_plus, unquote_plus
 
 
 ## ────────────── Логгер и роутер для aiogram ──────────────
 logger = logging.getLogger(__name__)
 router = Router()
+TEMPLATE_DELETE_TOKENS: dict[int, dict[str, str]] = {}
 
+
+def _admin_only(func):
+    sig = inspect.signature(func)
+    has_var_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+
+    @wraps(func)
+    async def wrapper(event, *args, **kwargs):
+        user_id = getattr(event.from_user, "id", None)
+        if user_id not in ADMIN_IDS:
+            if isinstance(event, types.CallbackQuery):
+                await event.answer("Доступ запрещён", show_alert=True)
+            else:
+                await event.answer("Доступ запрещён")
+            return
+        filtered_kwargs = kwargs if has_var_kwargs else {k: v for k, v in kwargs.items() if k in sig.parameters}
+        return await func(event, *args, **filtered_kwargs)
+
+    return wrapper
+
+
+def _template_root_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📦 Расходная накладная", callback_data="tpl:invoice")],
+        [InlineKeyboardButton(text="📉 Акт списания", callback_data="tpl:writeoff")],
+    ])
+
+
+def _invoice_templates_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🛠 Создать шаблон", callback_data="prep:create_template")],
+        [InlineKeyboardButton(text="📋 Список шаблонов", callback_data="tpl:invoice:list")],
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="tpl:root")],
+    ])
+
+
+@router.message(F.text == "Настройка шаблонов")
+@_admin_only
+async def open_template_settings(message: types.Message):
+    await message.answer("Выберите тип шаблонов:", reply_markup=_template_root_keyboard())
+
+
+@router.callback_query(F.data == "tpl:root")
+@_admin_only
+async def template_root_menu(callback: types.CallbackQuery):
+    await callback.message.edit_text("Выберите тип шаблонов:", reply_markup=_template_root_keyboard())
+    await callback.answer()
+
+
+@router.callback_query(F.data == "tpl:invoice")
+@_admin_only
+async def template_invoice_menu(callback: types.CallbackQuery):
+    await callback.message.edit_text("Настройка шаблонов расходной накладной:", reply_markup=_invoice_templates_keyboard())
+    await callback.answer()
+
+
+@router.callback_query(F.data == "tpl:writeoff")
+@_admin_only
+async def template_writeoff_menu(callback: types.CallbackQuery):
+    await callback.answer("Шаблоны списаний появятся позже", show_alert=True)
+
+
+async def _render_invoice_template_list(callback: types.CallbackQuery):
+    templates = await list_templates()
+    if not templates:
+        text = "Шаблоны не найдены."
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="tpl:invoice")]])
+        await callback.message.edit_text(text, reply_markup=keyboard)
+        return
+
+    items = "\n".join(f"• {name}" for name in templates)
+    token_map = {secrets.token_hex(3): name for name in templates}
+    TEMPLATE_DELETE_TOKENS[callback.from_user.id] = token_map
+    buttons = [
+        [InlineKeyboardButton(text=f"🗑 {name}", callback_data=f"tpl:invoice:delete:{token}")]
+        for token, name in token_map.items()
+    ]
+    buttons.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="tpl:invoice")])
+    await callback.message.edit_text(
+        "📋 Список шаблонов:\n" + items,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)
+    )
+
+
+@router.callback_query(F.data == "tpl:invoice:list")
+@_admin_only
+async def list_invoice_templates(callback: types.CallbackQuery):
+    await _render_invoice_template_list(callback)
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("tpl:invoice:delete:"))
+@_admin_only
+async def delete_invoice_template(callback: types.CallbackQuery):
+    token = callback.data.split(":", 3)[-1]
+    user_tokens = TEMPLATE_DELETE_TOKENS.get(callback.from_user.id, {})
+    template_name = user_tokens.get(token)
+    if not template_name:
+        template_name = unquote_plus(token)
+
+    async with async_session() as session:
+        await session.execute(delete(PreparationTemplate).where(PreparationTemplate.name == template_name))
+        await session.commit()
+
+    await callback.answer(f"Шаблон '{template_name}' удалён")
+    user_tokens.pop(token, None)
+    await _render_invoice_template_list(callback)
 
 
 ## ────────────── Состояния FSM для создания шаблона ──────────────

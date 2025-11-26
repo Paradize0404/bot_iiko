@@ -235,7 +235,7 @@ async def calculate_revenue(data: list, date_from: str, date_to: str) -> Dict[st
     # ⚠️ ВАЖНО: Фильтруем по DishCategory (только разрешённые категории)
     # OLAP API игнорирует параметр DishCategory, поэтому фильтруем в коде
     # Исключаем: Модификаторы, Расходные материалы (как в iiko)
-    excluded_categories = ["Модификаторы", "Расходные материалы"]
+    excluded_categories = list(CATEGORY_EXCLUDE_FOR_COST)
     if "DishCategory" in df.columns:
         before = len(df)
         df = df[~df["DishCategory"].isin(excluded_categories)].copy()
@@ -261,8 +261,9 @@ async def calculate_revenue(data: list, date_from: str, date_to: str) -> Dict[st
         raise ValueError(f"В отчете отсутствует колонка места приготовления")
     
     # Исключаем строки "(без оплаты)" из расчета себестоимости (удаленные/отмененные блюда)
-    is_no_payment = df[pay_types_col].astype(str).str.contains("без оплаты", case=False, na=False)
-    
+    no_payment_mask = df[pay_types_col].astype(str).str.contains("без оплаты", case=False, na=False)
+    if no_payment_mask.any():
+        df = df[~no_payment_mask].copy()
     is_yandex = df[pay_types_col].astype(str).str.contains("Яндекс.оплата", case=False, na=False)
     is_bar = df[cooking_place_col].astype(str).str.lower() == "бар"
     is_kitchen = df[cooking_place_col].astype(str).str.lower().isin(["кухня", "кухня-пицца", "пицца"])
@@ -307,25 +308,29 @@ async def calculate_revenue(data: list, date_from: str, date_to: str) -> Dict[st
     cost_col = "ProductCostBase.ProductCost"
     
     # 1. Себестоимость бара (без Яндекса, БЕЗ "(без оплаты)")
-    bar_cost = df[is_bar & ~is_yandex & ~is_no_payment][cost_col].sum() if cost_col in df.columns else 0
+    bar_cost = df[is_bar & ~is_yandex][cost_col].sum() if cost_col in df.columns else 0
     bar_cost_percent = (bar_cost / bar_revenue * 100) if bar_revenue > 0 else 0
     
     # 2. Себестоимость кухни (без Яндекса, БЕЗ "(без оплаты)")
-    kitchen_cost = df[is_kitchen & ~is_yandex & ~is_no_payment][cost_col].sum() if cost_col in df.columns else 0
+    kitchen_cost = df[is_kitchen & ~is_yandex][cost_col].sum() if cost_col in df.columns else 0
     kitchen_cost_percent = (kitchen_cost / kitchen_revenue * 100) if kitchen_revenue > 0 else 0
     
     # 3. Себестоимость Яндекса (только Яндекс)
     yandex_cost = df[is_yandex][cost_col].sum() if cost_col in df.columns else 0
-    yandex_cost_percent = (yandex_cost / yandex_raw * 100) if yandex_raw > 0 else 0
+    yandex_cost_percent = (yandex_cost / delivery_revenue * 100) if delivery_revenue > 0 else 0
     
     # 4. Общая себестоимость кухни (включая Яндекс, БЕЗ "(без оплаты)")
-    kitchen_total_cost = df[is_kitchen & ~is_no_payment][cost_col].sum() if cost_col in df.columns else 0
+    kitchen_total_cost = df[is_kitchen][cost_col].sum() if cost_col in df.columns else 0
     kitchen_delivery_revenue = kitchen_revenue + delivery_revenue
     kitchen_total_cost_percent = (kitchen_total_cost / kitchen_delivery_revenue * 100) if kitchen_delivery_revenue > 0 else 0
     
     logger.info(f"Себестоимость бара: {bar_cost:.2f}₽ ({bar_cost_percent:.1f}%)")
     logger.info(f"Себестоимость кухни: {kitchen_cost:.2f}₽ ({kitchen_cost_percent:.1f}%)")
-    logger.info(f"Себестоимость Яндекс: {yandex_cost:.2f}₽ ({yandex_cost_percent:.1f}%)")
+    logger.info(
+        "Себестоимость Яндекс: %.2f₽ (%.1f%% от выручки доставки после комиссии)",
+        yandex_cost,
+        yandex_cost_percent,
+    )
     logger.info(f"Себестоимость кухни общая: {kitchen_total_cost:.2f}₽ ({kitchen_total_cost_percent:.1f}%)")
     
     # 5. Общая себестоимость (все категории)
@@ -671,8 +676,9 @@ def format_cost_by_cooking_place_report(result: Dict[str, Any]) -> str:
             entry = plan_comparison.get(key)
             if not entry:
                 continue
+            emoji = "🔴" if entry['fact'] > entry['plan'] else "🟢"
             line = (
-                f"• {label}: план {_fmt_percent(entry['plan'])}, "
+                f"{emoji} {label}: план {_fmt_percent(entry['plan'])}, "
                 f"факт {_fmt_percent(entry['fact'])}, "
                 f"Δ {_fmt_signed_percent(entry['delta'])} п.п."
             )
@@ -721,11 +727,9 @@ def format_cost_by_cooking_place_report(result: Dict[str, Any]) -> str:
                 lines.append(f"{emoji} {heading}:")
                 for item in entries:
                     lines.append(
-                        "• {name}: себестоимость {cost}, выручка {rev}, маржа {margin} ({share:.1f}% доля)".format(
+                        "• {name}: себестоимость {percent} ({share:.1f}% доля)".format(
                             name=item['name'],
-                            cost=_fmt_currency(item['cost']),
-                            rev=_fmt_currency(item['revenue']),
-                            margin=_fmt_currency(item['margin']),
+                            percent=_fmt_percent(item.get('cost_percent', 0.0)),
                             share=item.get('cost_share_percent', 0.0),
                         )
                     )

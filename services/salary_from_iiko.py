@@ -331,6 +331,8 @@ async def fetch_salary_from_iiko(from_date: str, to_date: str) -> dict:
             period_start, 
             period_end
         )
+        for emp_id in all_employee_ids:
+            position_histories.setdefault(emp_id, [])
         logger.debug(f"📦 Загружена история для {len(position_histories)} сотрудников")
         
         # Обрабатываем сотрудников с attendance (почасовые и посменные)
@@ -470,14 +472,7 @@ async def fetch_salary_from_iiko(from_date: str, to_date: str) -> dict:
             emp_name = emp_info['name']
             
             # Берём историю должностей из кеша; при отсутствии делаем точечный запрос
-            position_history = position_histories.get(emp_id)
-            if position_history is None:
-                try:
-                    position_history = await get_position_history_for_period(emp_id, period_start, period_end)
-                except Exception as e:  # noqa: BLE001
-                    logger.debug("Не удалось получить историю должностей для %s: %s", emp_name, e)
-                    position_history = []
-                position_histories[emp_id] = position_history
+            position_history = position_histories.get(emp_id, [])
             
             if not position_history:
                 position_history = [{

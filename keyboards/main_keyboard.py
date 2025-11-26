@@ -16,6 +16,7 @@ def main_menu_keyboard(user_id: int) -> ReplyKeyboardMarkup:
 
     if user_id in ADMIN_IDS:
         keyboard.append([KeyboardButton(text="📊 Отчёты")])
+        keyboard.append([KeyboardButton(text="⚙️ Админ панель")])
         keyboard.append([KeyboardButton(text="Команды")])
 
     keyboard.append([KeyboardButton(text="Создание документа")])
@@ -39,14 +40,9 @@ def get_document_type_keyboard():
 def get_reports_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text='📈 Выручка / Себестоимость')],      # Новый отчёт
-            [KeyboardButton(text='📑 Себестоимость по категориям')],  # Новый отчёт
+            [KeyboardButton(text='📈 Выручка / Себестоимость')],
+            [KeyboardButton(text='📑 Себестоимость по категориям')],
             [KeyboardButton(text='💰 Зарплата')],
-            [KeyboardButton(text='⚙️ Настройка комиссий')],           # Настройка комиссий сотрудников
-            [KeyboardButton(text='⚙️ Комиссия Яндекс')],              # Настройка комиссии Яндекса
-            [KeyboardButton(text='⚙️ План себестоимости')],
-            [KeyboardButton(text='⚙️ Настройка цехов')],              # Настройка цехов и ФОТ
-            [KeyboardButton(text='📝 Корректировка должности')],      # Корректировка истории должностей
             [KeyboardButton(text='📉 Списания')],
             [KeyboardButton(text='🔙 Назад')]
         ],
@@ -55,10 +51,31 @@ def get_reports_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
+def get_admin_panel_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text='⚙️ Настройка комиссий')],
+            [KeyboardButton(text='⚙️ Комиссия Яндекс')],
+            [KeyboardButton(text='⚙️ План себестоимости')],
+            [KeyboardButton(text='⚙️ Настройка цехов')],
+            [KeyboardButton(text='📝 Корректировка должности')],
+            [KeyboardButton(text='Настройка шаблонов')],
+            [KeyboardButton(text='🔙 Назад')]
+        ],
+        resize_keyboard=True,
+        input_field_placeholder="Выберите раздел настроек"
+    )
+
+
 ## ────────────── Обработчики команд ──────────────
 @router.message(F.text == "📊 Отчёты")
 async def handle_reports_button(message: Message):
     await message.answer("Выберите тип отчета:", reply_markup=get_reports_keyboard())
+
+
+@router.message(F.text == "⚙️ Админ панель")
+async def handle_admin_panel_button(message: Message):
+    await message.answer("Выберите раздел настроек:", reply_markup=get_admin_panel_keyboard())
 
 
 

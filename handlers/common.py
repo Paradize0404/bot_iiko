@@ -28,6 +28,17 @@ class PreparationTemplate(Base):
     items: Mapped[dict] = mapped_column(JSON)
 
 
+class WriteoffTemplate(Base):
+    __tablename__ = "writeoff_templates"
+    name: Mapped[str] = mapped_column(String, primary_key=True)
+    store_id: Mapped[str] = mapped_column(String)
+    store_name: Mapped[str] = mapped_column(String)
+    account_id: Mapped[str] = mapped_column(String)
+    account_name: Mapped[str] = mapped_column(String)
+    reason: Mapped[str] = mapped_column(String, nullable=True)
+    items: Mapped[dict] = mapped_column(JSON)
+
+
 ## ────────────── Модель склада ──────────────
 class Store(Base):
     __tablename__ = "stores"
@@ -62,6 +73,18 @@ async def ensure_preparation_table_exists(engine: AsyncEngine) -> None:
         if "preparation_templates" not in await conn.run_sync(_tables):
             await conn.run_sync(Base.metadata.create_all)
             logger.info("✅ Таблица preparation_templates создана")
+
+
+async def ensure_writeoff_template_table_exists(engine: AsyncEngine) -> None:
+    async with engine.begin() as conn:
+        def _tables(sync_conn):
+            from sqlalchemy import inspect as _inspect
+
+            return _inspect(sync_conn).get_table_names()
+
+        if "writeoff_templates" not in await conn.run_sync(_tables):
+            await conn.run_sync(Base.metadata.create_all)
+            logger.info("✅ Таблица writeoff_templates создана")
 
 
 ## ────────────── Кэширование складов ──────────────
@@ -125,6 +148,18 @@ async def list_templates() -> list[str]:
     async with async_session() as s:
         r = await s.execute(select(PreparationTemplate.name))
         return r.scalars().all()
+
+
+async def list_writeoff_templates() -> list[str]:
+    async with async_session() as s:
+        r = await s.execute(select(WriteoffTemplate.name))
+        return r.scalars().all()
+
+
+async def get_writeoff_template(name: str):
+    async with async_session() as s:
+        r = await s.execute(select(WriteoffTemplate).where(WriteoffTemplate.name == name))
+        return r.scalar_one_or_none()
 
 
 ## ────────────── Получение шаблона по имени ──────────────

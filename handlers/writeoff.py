@@ -4,14 +4,26 @@
 import logging
 import asyncio
 from typing import Optional
+import secrets
 from aiogram import Bot, Router, F, types
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+try:
+    from aiogram.exceptions import TelegramBadRequest
+except ImportError:  # fallback for older aiogram builds
+    from aiogram.utils.exceptions import TelegramBadRequest  # type: ignore[import]
 from sqlalchemy import select
 from db.employees_db import async_session
 from handlers.base_document import BaseDocumentHandler, _normalize_unit
-from handlers.common import get_unit_name_by_id, _get_store_id, preload_stores
+from handlers.common import (
+    get_unit_name_by_id,
+    _get_store_id,
+    preload_stores,
+    list_writeoff_templates,
+    get_writeoff_template,
+)
 from iiko.iiko_auth import get_auth_token, get_base_url
 import httpx
 from datetime import datetime
@@ -25,10 +37,13 @@ router = Router()
 logger = logging.getLogger(__name__)
 
 STORE_PAYMENT_FILTERS = DOC_CONFIG["writeoff"]["stores"]
+WRITEOFF_TEMPLATE_SELECTIONS: dict[int, dict[str, str]] = {}
 
 
 ## ────────────── Состояния FSM для акта списания ──────────────
 class WriteoffStates(StatesGroup):
+    Mode = State()
+    TemplateSelect = State()
     Store = State()
     PaymentType = State()
     Reason = State()
@@ -129,12 +144,58 @@ async def _set_prompt_message(
                 reply_markup=reply_markup,
             )
             return
+        except TelegramBadRequest as exc:
+            if "message is not modified" in str(exc).lower():
+                logger.debug("WRITEOFF prompt unchanged; keeping existing message")
+                return
+            logger.warning("WRITEOFF failed to edit prompt message: %s", exc)
+            prompt_id = None
         except Exception as exc:
             logger.warning("WRITEOFF failed to edit prompt message: %s", exc)
             prompt_id = None
 
     msg = await bot.send_message(chat_id, text, reply_markup=reply_markup)
     await state.update_data(prompt_msg_id=msg.message_id)
+
+
+async def _prompt_next_template_item(chat_id: int, bot: Bot, state: FSMContext) -> None:
+    data = await state.get_data()
+    queue = data.get("template_queue", []) or []
+    cursor = data.get("template_cursor", 0)
+
+    if cursor >= len(queue):
+        await state.update_data(template_mode=False, template_queue=[], template_cursor=0)
+        await state.set_state(WriteoffStates.AddItems)
+        prompt_kb = InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="✅ Отправить", callback_data="w_done")]]
+        )
+        await _set_prompt_message(
+            state,
+            bot,
+            chat_id,
+            "🔍 Введите часть названия товара или нажмите 'Отправить'.",
+            reply_markup=prompt_kb,
+        )
+        return
+
+    item = queue[cursor]
+    unit = await get_unit_name_by_id(item.get("mainunit"))
+    norm = _normalize_unit(unit)
+    if norm == "kg":
+        text = f"📏 Сколько грамм для «{item['name']}»?"
+    elif norm in ("l", "ml"):
+        text = f"📏 Сколько мл для «{item['name']}»?"
+    else:
+        text = f"📏 Сколько {unit} для «{item['name']}»?"
+
+    msg = await bot.send_message(chat_id, text)
+    await state.update_data(
+        current_item=item,
+        quantity_prompt_id=msg.message_id,
+        template_cursor=cursor + 1,
+        selection_msg_id=None,
+    )
+    await state.set_state(WriteoffStates.Quantity)
 
 
 
@@ -144,15 +205,120 @@ async def _set_prompt_message(
 @router.callback_query(F.data == "doc:writeoff")
 async def start_writeoff(callback: types.CallbackQuery, state: FSMContext):
     """
-    Старт процесса акта списания: выбор склада
+    Старт процесса акта списания: выбор режима
     """
     await preload_stores()
     await state.clear()
     logger.info("WRITEOFF start requested by user_id=%s chat_id=%s", callback.from_user.id, callback.message.chat.id)
+    await state.update_data(prompt_msg_id=callback.message.message_id)
+    mode_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✍️ Вручную", callback_data="w_mode:manual")],
+        [InlineKeyboardButton(text="📂 По шаблону", callback_data="w_mode:template")],
+    ])
+    await state.set_state(WriteoffStates.Mode)
+    await callback.message.edit_text("Как создать акт списания?", reply_markup=mode_keyboard)
+
+
+async def _start_manual_flow(callback: types.CallbackQuery, state: FSMContext):
     keyboard = await writeoff_handler.get_store_keyboard({})
     await state.set_state(WriteoffStates.Store)
     await state.update_data(prompt_msg_id=callback.message.message_id)
     await callback.message.edit_text("🏬 С какого склада списываем?", reply_markup=keyboard)
+
+
+async def _prompt_template_choice(callback: types.CallbackQuery, state: FSMContext) -> bool:
+    templates = await list_writeoff_templates()
+    if not templates:
+        return False
+
+    token_map = {secrets.token_hex(3): name for name in templates}
+    WRITEOFF_TEMPLATE_SELECTIONS[callback.from_user.id] = token_map
+    buttons = [
+        [InlineKeyboardButton(text=name, callback_data=f"w_template_pick:{token}")]
+        for token, name in token_map.items()
+    ]
+    buttons.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="w_mode:manual")])
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+    await state.set_state(WriteoffStates.TemplateSelect)
+    await callback.message.edit_text("📂 Выберите шаблон списания:", reply_markup=keyboard)
+    return True
+
+
+@router.callback_query(F.data.startswith("w_mode:"))
+async def choose_writeoff_mode(callback: types.CallbackQuery, state: FSMContext):
+    mode = callback.data.split(":", 1)[1]
+    if mode == "manual":
+        await _start_manual_flow(callback, state)
+        await callback.answer()
+    elif mode == "template":
+        has_templates = await _prompt_template_choice(callback, state)
+        if has_templates:
+            await callback.answer()
+        else:
+            await callback.answer("Нет шаблонов списаний", show_alert=True)
+    else:
+        await callback.answer("Неизвестный режим", show_alert=True)
+
+
+@router.callback_query(F.data.startswith("w_template_pick:"))
+async def choose_writeoff_template(callback: types.CallbackQuery, state: FSMContext):
+    token = callback.data.split(":", 1)[1]
+    user_map = WRITEOFF_TEMPLATE_SELECTIONS.get(callback.from_user.id, {})
+    template_name = user_map.get(token)
+    if not template_name:
+        await callback.answer("Шаблон не найден", show_alert=True)
+        return
+    user_map.pop(token, None)
+
+    template = await get_writeoff_template(template_name)
+    if not template:
+        await callback.answer("Шаблон удалён", show_alert=True)
+        return
+
+    started = await _start_template_flow(callback, state, template)
+    if started:
+        await callback.answer()
+    else:
+        await callback.answer("В шаблоне нет позиций", show_alert=True)
+
+
+async def _start_template_flow(callback: types.CallbackQuery, state: FSMContext, template) -> bool:
+    queue = list(template.items or [])
+    if not queue:
+        return False
+
+    reason = (template.reason or "").strip()
+    needs_reason = not reason
+    tg_id = str(callback.from_user.id)
+    full_name = await writeoff_handler.get_employee_name(tg_id)
+    await state.update_data(
+        store_name=template.store_name,
+        store_id=template.store_id,
+        account_name=template.account_name,
+        account_id=template.account_id,
+        reason=reason if reason else None,
+        user_fullname=full_name,
+        items=[],
+        prompt_msg_id=None,
+        template_mode=True,
+        template_queue=queue,
+        template_cursor=0,
+    )
+
+    await callback.message.edit_text("📄 Акт списания\n(заполняется...)")
+    await state.update_data(header_msg_id=callback.message.message_id)
+    await _refresh_header(state, callback.message.bot, callback.message.chat.id)
+    if needs_reason:
+        await state.set_state(WriteoffStates.Reason)
+        await _set_prompt_message(
+            state,
+            callback.message.bot,
+            callback.message.chat.id,
+            "📝 Введите причину списания для этого шаблона:",
+        )
+    else:
+        await _prompt_next_template_item(callback.message.chat.id, callback.message.bot, state)
+    return True
 
 
 @router.callback_query(F.data.startswith("w_store:"))
@@ -213,12 +379,21 @@ async def choose_type(callback: types.CallbackQuery, state: FSMContext):
 @router.message(WriteoffStates.Reason)
 async def set_reason(message: types.Message, state: FSMContext):
     """Сохраняет причину списания и переходит к поиску товаров."""
-    reason = message.text.strip()
-    logger.info("WRITEOFF reason set: %s", reason)
+    reason = (message.text or "").strip()
     await message.delete()
+    if not reason:
+        await message.answer("❌ Причина не может быть пустой")
+        return
+
+    logger.info("WRITEOFF reason set: %s", reason)
+    data = await state.get_data()
     await state.update_data(reason=reason)
 
     await _refresh_header(state, message.bot, message.chat.id)
+
+    if data.get("template_mode"):
+        await _prompt_next_template_item(message.chat.id, message.bot, state)
+        return
 
     await state.set_state(WriteoffStates.AddItems)
     await _set_prompt_message(
@@ -348,6 +523,11 @@ async def save_quantity(message: types.Message, state: FSMContext):
     await message.delete()
 
     await _refresh_header(state, message.bot, message.chat.id)
+
+    if data.get("template_mode"):
+        await _prompt_next_template_item(message.chat.id, message.bot, state)
+        return
+
     await state.set_state(WriteoffStates.AddItems)
     prompt_kb = InlineKeyboardMarkup(
         inline_keyboard=[[InlineKeyboardButton(text="✅ Отправить", callback_data="w_done")]]

@@ -6,11 +6,13 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from sqlalchemy.dialects.postgresql import insert
 from utils.telegram_helpers import edit_or_send
-from config import PARENT_FILTERS, STORE_NAME_MAP, ADMIN_IDS
+from config import PARENT_FILTERS, STORE_NAME_MAP, ADMIN_IDS, DOC_CONFIG
 from services.db_queries import DBQueries
 from handlers.common import (
     PreparationTemplate,              # Модель шаблона приготовления
     ensure_preparation_table_exists,  # Проверка/создание таблицы шаблонов
+    WriteoffTemplate,
+    ensure_writeoff_template_table_exists,
     preload_stores,                   # Кэширование складов
     _kbd,                             # Быстрое создание клавиатуры складов
     _get_store_id,                    # Получение id склада по имени
@@ -18,6 +20,7 @@ from handlers.common import (
     search_suppliers,                 # Поиск поставщиков
     STORE_CACHE,                      # Кэш складов
     list_templates,
+    list_writeoff_templates,
 )
 from db.employees_db import async_session
 from sqlalchemy import delete
@@ -32,6 +35,8 @@ from urllib.parse import quote_plus, unquote_plus
 logger = logging.getLogger(__name__)
 router = Router()
 TEMPLATE_DELETE_TOKENS: dict[int, dict[str, str]] = {}
+WRITEOFF_TEMPLATE_DELETE_TOKENS: dict[int, dict[str, str]] = {}
+STORE_PAYMENT_FILTERS = DOC_CONFIG["writeoff"].get("stores", {})
 
 
 def _admin_only(func):
@@ -68,6 +73,14 @@ def _invoice_templates_keyboard() -> InlineKeyboardMarkup:
     ])
 
 
+def _writeoff_templates_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🛠 Создать шаблон", callback_data="wtemplate:create")],
+        [InlineKeyboardButton(text="📋 Список шаблонов", callback_data="wtemplate:list")],
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="tpl:root")],
+    ])
+
+
 @router.message(F.text == "Настройка шаблонов")
 @_admin_only
 async def open_template_settings(message: types.Message):
@@ -91,7 +104,8 @@ async def template_invoice_menu(callback: types.CallbackQuery):
 @router.callback_query(F.data == "tpl:writeoff")
 @_admin_only
 async def template_writeoff_menu(callback: types.CallbackQuery):
-    await callback.answer("Шаблоны списаний появятся позже", show_alert=True)
+    await callback.message.edit_text("Настройка шаблонов списаний:", reply_markup=_writeoff_templates_keyboard())
+    await callback.answer()
 
 
 async def _render_invoice_template_list(callback: types.CallbackQuery):
@@ -112,6 +126,27 @@ async def _render_invoice_template_list(callback: types.CallbackQuery):
     buttons.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="tpl:invoice")])
     await callback.message.edit_text(
         "📋 Список шаблонов:\n" + items,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)
+    )
+
+
+async def _render_writeoff_template_list(callback: types.CallbackQuery):
+    templates = await list_writeoff_templates()
+    if not templates:
+        kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="tpl:writeoff")]])
+        await callback.message.edit_text("Шаблоны не найдены.", reply_markup=kb)
+        return
+
+    items = "\n".join(f"• {name}" for name in templates)
+    token_map = {secrets.token_hex(3): name for name in templates}
+    WRITEOFF_TEMPLATE_DELETE_TOKENS[callback.from_user.id] = token_map
+    buttons = [
+        [InlineKeyboardButton(text=f"🗑 {name}", callback_data=f"wtemplate:delete:{token}")]
+        for token, name in token_map.items()
+    ]
+    buttons.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="tpl:writeoff")])
+    await callback.message.edit_text(
+        "📋 Список шаблонов списаний:\n" + items,
         reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)
     )
 
@@ -141,6 +176,31 @@ async def delete_invoice_template(callback: types.CallbackQuery):
     await _render_invoice_template_list(callback)
 
 
+@router.callback_query(F.data == "wtemplate:list")
+@_admin_only
+async def list_writeoff_templates_handler(callback: types.CallbackQuery):
+    await _render_writeoff_template_list(callback)
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("wtemplate:delete:"))
+@_admin_only
+async def delete_writeoff_template_handler(callback: types.CallbackQuery):
+    token = callback.data.split(":", 2)[-1]
+    user_tokens = WRITEOFF_TEMPLATE_DELETE_TOKENS.get(callback.from_user.id, {})
+    template_name = user_tokens.get(token)
+    if not template_name:
+        template_name = unquote_plus(token)
+
+    async with async_session() as session:
+        await session.execute(delete(WriteoffTemplate).where(WriteoffTemplate.name == template_name))
+        await session.commit()
+
+    user_tokens.pop(token, None)
+    await callback.answer(f"Шаблон '{template_name}' удалён")
+    await _render_writeoff_template_list(callback)
+
+
 ## ────────────── Состояния FSM для создания шаблона ──────────────
 class TemplateStates(StatesGroup):
     """
@@ -157,6 +217,13 @@ class TemplateStates(StatesGroup):
     AddItems = State()        # Добавление позиций
     SetPrice = State()        # Ввод цены отгрузки
 
+
+class WriteoffTemplateStates(StatesGroup):
+    Name = State()
+    Store = State()
+    Account = State()
+    Reason = State()
+    AddItems = State()
 
 
 ## ────────────── Вспомогательная функция: отрисовка статуса шаблона ──────────────
@@ -189,6 +256,27 @@ async def render_template_status(state: FSMContext, bot: Bot, chat_id: int):
         )
     except Exception:
         logger.exception("Ошибка обновления статуса шаблона")
+
+
+async def render_writeoff_template_status(state: FSMContext, bot: Bot, chat_id: int):
+    data = await state.get_data()
+    items = data.get("writeoff_template_items", [])
+    items_text = "\n".join(f"• {it['name']}" for it in items) or "—"
+    text = (
+        "🧾 <b>Шаблон акта списания</b>\n"
+        f"Название: <b>{data.get('writeoff_template_name', '—')}</b>\n"
+        f"Склад: <b>{data.get('writeoff_store_name', '—')}</b>\n"
+        f"Тип списания: <b>{data.get('writeoff_account_name', '—')}</b>\n"
+        f"Причина: <b>{data.get('writeoff_reason', '—')}</b>\n"
+        f"🍽 <b>Позиции:</b>\n{items_text}"
+    )
+    msg_id = data.get("writeoff_status_message_id")
+    if not msg_id:
+        return
+    try:
+        await bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text=text, parse_mode="HTML")
+    except Exception:
+        logger.exception("Ошибка обновления статуса шаблона списания")
 
 
 
@@ -421,3 +509,208 @@ async def finish_template(c: types.CallbackQuery, state: FSMContext):
         await s.execute(insert(PreparationTemplate).values(**template).on_conflict_do_nothing())
         await s.commit()
     logger.info("✅ Шаблон сохранён: %s", pprint.pformat(template, width=120))
+
+
+def _format_writeoff_account_keyboard(type_names: list[str], accounts: list) -> tuple[InlineKeyboardMarkup, dict]:
+    by_name = {acc.name: acc for acc in accounts}
+    buttons = []
+    cache: dict[str, str] = {}
+    for name in type_names:
+        acc = by_name.get(name)
+        if not acc:
+            logger.warning("WRITEOFF template account %s отсутствует в БД", name)
+            continue
+        cache[acc.id] = acc.name
+        buttons.append([InlineKeyboardButton(text=acc.name, callback_data=f"wtemplate_account:{acc.id}")])
+    if not buttons:
+        buttons = [[InlineKeyboardButton(text="Нет доступных типов", callback_data="wtemplate_account:noop")]]
+    return InlineKeyboardMarkup(inline_keyboard=buttons), cache
+
+
+@router.callback_query(F.data == "wtemplate:create")
+@_admin_only
+async def start_writeoff_template(callback: types.CallbackQuery, state: FSMContext):
+    await state.clear()
+    await state.set_state(WriteoffTemplateStates.Name)
+    await callback.message.delete()
+    status = await callback.message.answer("🧾 Шаблон акта списания\n(заполняется...)")
+    prompt = await callback.message.answer("🛠 Введите название шаблона:")
+    await state.update_data(
+        writeoff_template_items=[],
+        writeoff_status_message_id=status.message_id,
+        writeoff_form_message_id=prompt.message_id,
+    )
+
+
+@router.message(WriteoffTemplateStates.Name)
+async def set_writeoff_template_name(message: types.Message, state: FSMContext):
+    await message.delete()
+    await state.update_data(writeoff_template_name=message.text.strip())
+
+    stores = list(STORE_PAYMENT_FILTERS.keys())
+    if not stores:
+        await message.answer("❌ В конфиге нет складов для списаний")
+        return
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text=name, callback_data=f"wtemplate_store:{quote_plus(name)}")]
+                         for name in stores]
+    )
+    data = await state.get_data()
+    await message.bot.edit_message_text(
+        chat_id=message.chat.id,
+        message_id=data.get("writeoff_form_message_id"),
+        text="🏬 С какого склада списывать?",
+        reply_markup=kb,
+    )
+    await state.set_state(WriteoffTemplateStates.Store)
+    await render_writeoff_template_status(state, message.bot, message.chat.id)
+
+
+@router.callback_query(F.data.startswith("wtemplate_store:"))
+async def set_writeoff_store(callback: types.CallbackQuery, state: FSMContext):
+    store_name = unquote_plus(callback.data.split(":", 1)[1])
+    store_id = await _get_store_id(store_name)
+    if not store_id:
+        await callback.answer("❌ Склад не найден")
+        return
+
+    await state.update_data(writeoff_store_id=store_id, writeoff_store_name=store_name)
+
+    type_names = STORE_PAYMENT_FILTERS.get(store_name, [])
+    accounts = await DBQueries.get_accounts_by_names(type_names) if type_names else []
+    keyboard, cache = _format_writeoff_account_keyboard(type_names, accounts)
+    await state.update_data(writeoff_account_cache=cache)
+
+    await state.set_state(WriteoffTemplateStates.Account)
+    await callback.message.edit_text("📂 Выберите тип списания:", reply_markup=keyboard)
+    await render_writeoff_template_status(state, callback.message.bot, callback.message.chat.id)
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("wtemplate_account:"))
+async def set_writeoff_account(callback: types.CallbackQuery, state: FSMContext):
+    account_id = callback.data.split(":", 1)[1]
+    data = await state.get_data()
+    account_name = data.get("writeoff_account_cache", {}).get(account_id)
+    if not account_name:
+        await callback.answer("❌ Тип списания недоступен")
+        return
+
+    await state.update_data(writeoff_account_id=account_id, writeoff_account_name=account_name)
+    await state.set_state(WriteoffTemplateStates.Reason)
+    await callback.message.edit_text("📝 Введите причину списания:")
+    await render_writeoff_template_status(state, callback.message.bot, callback.message.chat.id)
+    await callback.answer()
+
+
+@router.message(WriteoffTemplateStates.Reason)
+async def set_writeoff_reason(message: types.Message, state: FSMContext):
+    await message.delete()
+    await state.update_data(writeoff_reason=message.text.strip())
+    await render_writeoff_template_status(state, message.bot, message.chat.id)
+    await state.set_state(WriteoffTemplateStates.AddItems)
+    data = await state.get_data()
+    await message.bot.edit_message_text(
+        chat_id=message.chat.id,
+        message_id=data.get("writeoff_form_message_id"),
+        text="🍽 Введите часть названия позиции:",
+    )
+
+
+@router.message(WriteoffTemplateStates.AddItems)
+async def search_writeoff_items(message: types.Message, state: FSMContext):
+    query = message.text.strip()
+    await message.delete()
+    if not query:
+        return
+
+    results = await DBQueries.search_nomenclature(
+        query,
+        types=["GOODS", "PREPARED"],
+        parents=None,
+        use_parent_filters=False,
+    )
+    if not results:
+        await message.answer("🔎 Ничего не найдено.")
+        return
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text=item["name"], callback_data=f"wtemplate_item:{item['id']}")]
+                         for item in results]
+    )
+    await state.update_data(writeoff_nomenclature_cache={item["id"]: item for item in results})
+    data = await state.get_data()
+    await message.bot.edit_message_text(
+        chat_id=message.chat.id,
+        message_id=data.get("writeoff_form_message_id"),
+        text="🔎 Найдено. Выберите позицию:",
+        reply_markup=kb,
+    )
+
+
+@router.callback_query(F.data.startswith("wtemplate_item:"))
+async def add_item_to_writeoff_template(callback: types.CallbackQuery, state: FSMContext):
+    item_id = callback.data.split(":", 1)[1]
+    data = await state.get_data()
+    cache = data.get("writeoff_nomenclature_cache", {})
+    item = cache.get(item_id)
+    if not item:
+        await callback.answer("❌ Товар не найден")
+        return
+
+    items = data.get("writeoff_template_items", [])
+    items.append({"id": item_id, "name": item["name"], "mainunit": item.get("mainunit")})
+    await state.update_data(writeoff_template_items=items)
+    await render_writeoff_template_status(state, callback.message.bot, callback.message.chat.id)
+
+    prompt_kb = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="✅ Готово", callback_data="wtemplate_done")]]
+    )
+    await callback.message.edit_text(
+        "✅ Позиция добавлена. Введите новое название или нажмите 'Готово'.",
+        reply_markup=prompt_kb,
+    )
+    await state.update_data(writeoff_nomenclature_cache={})
+    await callback.answer()
+
+
+@router.callback_query(F.data == "wtemplate_done")
+async def finish_writeoff_template(callback: types.CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    items = data.get("writeoff_template_items", [])
+    if not items:
+        await callback.answer("Добавьте хотя бы одну позицию")
+        return
+
+    reason = (data.get("writeoff_reason") or "").strip()
+    if not reason:
+        await callback.answer("Укажите причину списания", show_alert=True)
+        return
+
+    template = {
+        "name": data.get("writeoff_template_name"),
+        "store_id": data.get("writeoff_store_id"),
+        "store_name": data.get("writeoff_store_name"),
+        "account_id": data.get("writeoff_account_id"),
+        "account_name": data.get("writeoff_account_name"),
+        "reason": reason,
+        "items": items,
+    }
+
+    missing_field = next((k for k, v in template.items() if not v), None)
+    if missing_field:
+        await callback.answer("Заполните все поля перед сохранением", show_alert=True)
+        return
+
+    from db.employees_db import engine
+
+    await ensure_writeoff_template_table_exists(engine)
+    async with async_session() as session:
+        await session.execute(insert(WriteoffTemplate).values(**template).on_conflict_do_nothing())
+        await session.commit()
+
+    await callback.message.edit_text("🧾 Шаблон списания сохранён ✅")
+    await callback.answer("Готово!")
+    logger.info("✅ Writeoff template saved: %s", pprint.pformat(template, width=120))
+    await state.clear()

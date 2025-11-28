@@ -9,6 +9,11 @@ from aiogram.fsm.state import State, StatesGroup
 from keyboards.inline_calendar import build_calendar, parse_callback_data
 from services.purchase_summary import get_purchase_summary
 from services.revenue_report import get_revenue_report, calculate_revenue
+from services.supplies_tmc_report import (
+    DEFAULT_ACCOUNT_FILTERS as SUPPLIES_ACCOUNT_ORDER,
+    get_supplies_tmc_report,
+    split_rows_by_account,
+)
 from services.writeoff_documents import get_segment_writeoff_totals
 
 logger = logging.getLogger(__name__)
@@ -20,7 +25,13 @@ class PurchaseReportStates(StatesGroup):
     selecting_end = State()
 
 
+class SuppliesTmcReportStates(StatesGroup):
+    selecting_start = State()
+    selecting_end = State()
+
+
 PURCHASE_CALENDAR_PREFIX = "purchase"
+SUPPLIES_TMC_CALENDAR_PREFIX = "supplies_tmc"
 PURCHASE_ACCOUNT_NAMES = (
     "Бар Пиццерия",
     "Кухня Пиццерия",
@@ -32,6 +43,10 @@ PURCHASE_ERROR_HINT = (
     "⚠️ Не удалось получить данные от iiko."
     "\nПожалуйста, попробуйте ещё раз через пару минут — бот работает нормально,"
     " просто внешний сервис временно недоступен."
+)
+SUPPLIES_TMC_ERROR_HINT = (
+    "⚠️ Не удалось получить данные по расходным материалам / ТМЦ."
+    "\nПопробуйте ещё раз чуть позже."
 )
 
 
@@ -122,6 +137,36 @@ def _format_summary_text(
         _append_deviation("Кухня", "kitchen")
         _append_deviation("Бар", "bar")
 
+    return "\n".join(lines)
+
+
+def _format_supplies_tmc_text(report, date_from: str, date_to: str) -> str:
+    start_label = _fmt_date(date_from)
+    end_label = _fmt_date(date_to)
+    period_label = start_label if date_from == date_to else f"{start_label} — {end_label}"
+    lines = [
+        "📦 *Расходные материалы / ТМЦ*",
+        f"Период: {period_label}",
+        "",
+    ]
+
+    if not report.rows:
+        lines.append("Данных за выбранный период нет.")
+        return "\n".join(lines)
+
+    blocks = split_rows_by_account(report.rows, SUPPLIES_ACCOUNT_ORDER)
+    if not blocks:
+        lines.append("Данных за выбранный период нет.")
+        return "\n".join(lines)
+
+    for block in blocks:
+        lines.append(f"*Счёт:* {block.account_name}")
+        for row in block.rows:
+            lines.append(f"• {row.group_label}: {_fmt_currency(row.amount)} ₽")
+        lines.append(f"_Итого по счёту:_ {_fmt_currency(block.total)} ₽")
+        lines.append("")
+
+    lines.append(f"*Общая сумма прихода:* {_fmt_currency(report.total_amount)} ₽")
     return "\n".join(lines)
 
 
@@ -280,7 +325,12 @@ async def start_purchase_report(message: types.Message, state: FSMContext):
 @router.callback_query(lambda c: c.data and c.data.startswith("CAL:purchase"))
 async def purchase_calendar_handler(call: types.CallbackQuery, state: FSMContext):
     data = parse_callback_data(call.data)
-    if not data or data["calendar_id"].split("_")[0] != PURCHASE_CALENDAR_PREFIX:
+    if not data:
+        await call.answer()
+        return
+
+    calendar_id = data["calendar_id"]
+    if not calendar_id.startswith(PURCHASE_CALENDAR_PREFIX):
         await call.answer()
         return
 
@@ -374,3 +424,115 @@ async def purchase_calendar_handler(call: types.CallbackQuery, state: FSMContext
     except Exception as exc:
         logger.exception("Ошибка при формировании отчёта по закупкам: %s", exc)
         await msg.edit_text(f"{PURCHASE_ERROR_HINT}\n\nТехническая информация: {exc}")
+
+
+@router.message(F.text == "Расходные материалы/ТМЦ")
+async def start_supplies_tmc_report(message: types.Message, state: FSMContext):
+    await state.clear()
+    await state.set_state(SuppliesTmcReportStates.selecting_start)
+    now = datetime.now()
+    await message.answer(
+        "Выберите дату *начала* периода для отчёта по расходным материалам / ТМЦ:",
+        reply_markup=build_calendar(
+            year=now.year,
+            month=now.month,
+            calendar_id=f"{SUPPLIES_TMC_CALENDAR_PREFIX}_start",
+            mode="single",
+        ),
+    )
+
+
+@router.callback_query(lambda c: c.data and c.data.startswith("CAL:supplies_tmc"))
+async def supplies_tmc_calendar_handler(call: types.CallbackQuery, state: FSMContext):
+    data = parse_callback_data(call.data)
+    if not data:
+        await call.answer()
+        return
+
+    calendar_id = data["calendar_id"]
+    if not calendar_id.startswith(SUPPLIES_TMC_CALENDAR_PREFIX):
+        await call.answer()
+        return
+
+    if data["action"] == "IGNORE":
+        await call.answer()
+        return
+
+    if data["action"] in {"PREV", "NEXT"}:
+        year = data["year"]
+        month = data["month"]
+        if data["action"] == "PREV":
+            month -= 1
+            if month == 0:
+                month = 12
+                year -= 1
+        else:
+            month += 1
+            if month == 13:
+                month = 1
+                year += 1
+        await call.message.edit_reply_markup(
+            reply_markup=build_calendar(
+                year=year,
+                month=month,
+                calendar_id=data["calendar_id"],
+                mode=data["mode"],
+            )
+        )
+        await call.answer()
+        return
+
+    if data["action"] != "DATE":
+        await call.answer()
+        return
+
+    current_state = await state.get_state()
+    if current_state is None:
+        await call.answer("Сессия отчёта устарела. Начните заново.", show_alert=True)
+        return
+
+    selected_iso = data["date"].strftime("%Y-%m-%d")
+    selected_display = data["date"].strftime("%d.%m.%Y")
+
+    if current_state == SuppliesTmcReportStates.selecting_start.state:
+        await state.update_data(supplies_start=selected_iso)
+        await state.set_state(SuppliesTmcReportStates.selecting_end)
+        await call.message.edit_text(
+            f"Дата начала: {selected_display}\nТеперь выберите дату *конца* периода:",
+            reply_markup=build_calendar(
+                year=data["date"].year,
+                month=data["date"].month,
+                calendar_id=f"{SUPPLIES_TMC_CALENDAR_PREFIX}_end",
+                mode="single",
+            ),
+        )
+        await call.answer()
+        return
+
+    if current_state != SuppliesTmcReportStates.selecting_end.state:
+        await call.answer("Сессия отчёта устарела. Начните заново.", show_alert=True)
+        await state.clear()
+        return
+
+    user_data = await state.get_data()
+    date_start = user_data.get("supplies_start")
+    date_end = selected_iso
+    if not date_start:
+        await call.answer("Не найдена дата начала. Начните заново.", show_alert=True)
+        await state.clear()
+        return
+
+    if date_end < date_start:
+        date_start, date_end = date_end, date_start
+
+    await state.clear()
+    await call.answer()
+
+    msg = await call.message.edit_text("⏳ Формируем отчёт по расходным материалам / ТМЦ...")
+    try:
+        report = await get_supplies_tmc_report(date_start, date_end)
+        text = _format_supplies_tmc_text(report, date_start, date_end)
+        await msg.edit_text(text, parse_mode="Markdown")
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Ошибка при формировании отчёта supplies/tmc: %s", exc)
+        await msg.edit_text(f"{SUPPLIES_TMC_ERROR_HINT}\n\nТехническая информация: {exc}")

@@ -12,6 +12,8 @@ import logging
 
 from iiko.iiko_auth import get_auth_token, get_base_url
 from utils.datetime_helpers import strip_tz, normalize_isoformat
+from db.stores_db import Store as StoreModel, async_session as stores_async_session
+from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
 
@@ -238,6 +240,74 @@ async def get_writeoff_documents(from_date: str, to_date: str) -> list:
     except Exception as e:
         logger.exception(f"❌ Ошибка получения расходных накладных: {e}")
         return []
+
+
+async def get_segment_writeoff_totals(date_from: str, date_to: str) -> dict[str, float]:
+    """Возвращает суммы списаний по основным сегментам (бар, кухня).
+
+    Args:
+        date_from: начало периода (YYYY-MM-DD)
+        date_to: конец периода (YYYY-MM-DD)
+
+    Returns:
+        Словарь с суммами списаний по сегментам.
+    """
+
+    try:
+        token = await get_auth_token()
+        base_url = get_base_url()
+        url = f"{base_url}/resto/api/v2/documents/writeoff"
+        params = {"dateFrom": date_from, "dateTo": date_to}
+        headers = {"Cookie": f"key={token}"}
+
+        async with httpx.AsyncClient(verify=False, timeout=60.0) as client:
+            response = await client.get(url, params=params, headers=headers)
+        response.raise_for_status()
+
+        data = response.json() or {}
+        documents = data.get("response", []) or []
+
+        store_ids = {doc.get("storeId") for doc in documents if doc.get("storeId")}
+        store_name_map: dict[str, str] = {}
+        if store_ids:
+            async with stores_async_session() as session:
+                rows = await session.execute(
+                    select(StoreModel.id, StoreModel.name).where(StoreModel.id.in_(store_ids))
+                )
+                store_name_map = {
+                    store_id: (store_name or "").strip().lower()
+                    for store_id, store_name in rows.all()
+                }
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Не удалось получить списания по складам: %s", exc)
+        return {}
+
+    totals = {"bar": 0.0, "kitchen": 0.0}
+
+    def _store_label(doc: dict) -> str:
+        store_id = doc.get("storeId")
+        if store_id and store_name_map.get(store_id):
+            return store_name_map[store_id]
+
+        store_obj = doc.get("store") or {}
+        return (store_obj.get("name") or doc.get("storeName") or "").strip().lower()
+
+    for doc in documents:
+        items = doc.get("items") or []
+        total_cost = 0.0
+        for item in items:
+            try:
+                total_cost += float(item.get("cost") or 0.0)
+            except (TypeError, ValueError):
+                continue
+
+        label = _store_label(doc)
+        if "бар" in label:
+            totals["bar"] += total_cost
+        elif "кух" in label or "пицц" in label:
+            totals["kitchen"] += total_cost
+
+    return totals
 
 
 def get_writeoffs_for_work_dates(writeoff_documents: list, work_dates: list) -> list:

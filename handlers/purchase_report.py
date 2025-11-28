@@ -9,6 +9,7 @@ from aiogram.fsm.state import State, StatesGroup
 from keyboards.inline_calendar import build_calendar, parse_callback_data
 from services.purchase_summary import get_purchase_summary
 from services.revenue_report import get_revenue_report, calculate_revenue
+from services.writeoff_documents import get_segment_writeoff_totals
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -48,7 +49,12 @@ def _fmt_percent(value: float | None) -> str:
     return f"{value:.1f}%"
 
 
-def _format_summary_text(summary, date_from: str, date_to: str, share_info: dict[str, float] | None) -> str:
+def _format_summary_text(
+    summary,
+    date_from: str,
+    date_to: str,
+    metrics: dict[str, dict[str, float]] | None,
+) -> str:
     period_text = f"{_fmt_date(date_from)} — {_fmt_date(date_to)}"
     lines = [
         "📦 *Закуп по складам*",
@@ -68,6 +74,7 @@ def _format_summary_text(summary, date_from: str, date_to: str, share_info: dict
     else:
         lines.append("- Нет данных по складам")
 
+    share_info = (metrics or {}).get("share")
     if share_info:
         lines.append("")
         lines.append("*Доля закупа от выручки:*")
@@ -89,10 +96,40 @@ def _format_summary_text(summary, date_from: str, date_to: str, share_info: dict
         _append_share("ТМЦ", "tmc")
         _append_share("Все склады", "total")
 
+    deviation_info = (metrics or {}).get("deviation")
+    if deviation_info:
+        lines.append("")
+        lines.append("*Отклонение закупа от себестоимости:*")
+
+        def _append_deviation(label: str, key: str) -> None:
+            entry = deviation_info.get(key) if deviation_info else None
+            if not entry:
+                return
+
+            purchase_percent = entry.get("purchase_percent")
+            cost_percent = entry.get("cost_percent")
+            cost_value = entry.get("cost_value")
+            deviation = entry.get("deviation")
+            if purchase_percent is None or cost_percent is None:
+                return
+
+            lines.append(
+                f"- {label}: закуп {_fmt_percent(purchase_percent)} vs себестоимость {_fmt_percent(cost_percent)} "
+                f"({_fmt_currency(Decimal(str(cost_value or 0)))} ₽) → "
+                f"{deviation:+.1f} п.п."
+            )
+
+        _append_deviation("Кухня", "kitchen")
+        _append_deviation("Бар", "bar")
+
     return "\n".join(lines)
 
 
-async def _calculate_purchase_share(date_from: str, date_to: str, summary) -> dict[str, float] | None:
+async def _calculate_purchase_metrics(
+    date_from: str,
+    date_to: str,
+    summary,
+) -> dict[str, dict[str, float]] | None:
     kitchen_purchase = summary.store_totals.get("Кухня Пиццерия")
     bar_purchase = summary.store_totals.get("Бар Пиццерия")
     supplies_purchase = summary.store_totals.get("Хоз. товары Пиццерия")
@@ -111,7 +148,7 @@ async def _calculate_purchase_share(date_from: str, date_to: str, summary) -> di
     try:
         revenue_rows = await get_revenue_report(date_from, date_to)
         revenue_data = await calculate_revenue(revenue_rows, date_from, date_to)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         logger.warning("Не удалось получить выручку для расчёта доли закупа: %s", exc)
         return None
 
@@ -125,7 +162,7 @@ async def _calculate_purchase_share(date_from: str, date_to: str, summary) -> di
     kitchen_base = kitchen_revenue + delivery_revenue + writeoff_revenue
     bar_base = bar_revenue
 
-    result: dict[str, float] = {}
+    share_result: dict[str, float] = {}
     kitchen_purchase_float = _to_float(kitchen_purchase)
     bar_purchase_float = _to_float(bar_purchase)
     supplies_purchase_float = _to_float(supplies_purchase)
@@ -133,25 +170,94 @@ async def _calculate_purchase_share(date_from: str, date_to: str, summary) -> di
     total_purchase = kitchen_purchase_float + bar_purchase_float + supplies_purchase_float + tmc_purchase_float
 
     if kitchen_purchase_float:
-        result["kitchen_purchase"] = kitchen_purchase_float
-        result["kitchen_base"] = kitchen_base
-        result["kitchen_percent"] = (kitchen_purchase_float / kitchen_base * 100.0) if kitchen_base else None
+        share_result["kitchen_purchase"] = kitchen_purchase_float
+        share_result["kitchen_base"] = kitchen_base
+        share_result["kitchen_percent"] = (kitchen_purchase_float / kitchen_base * 100.0) if kitchen_base else None
     if bar_purchase_float:
-        result["bar_purchase"] = bar_purchase_float
-        result["bar_base"] = bar_base
-        result["bar_percent"] = (bar_purchase_float / bar_base * 100.0) if bar_base else None
+        share_result["bar_purchase"] = bar_purchase_float
+        share_result["bar_base"] = bar_base
+        share_result["bar_percent"] = (bar_purchase_float / bar_base * 100.0) if bar_base else None
     if supplies_purchase_float:
-        result["supplies_purchase"] = supplies_purchase_float
-        result["supplies_base"] = total_base
-        result["supplies_percent"] = (supplies_purchase_float / total_base * 100.0) if total_base else None
+        share_result["supplies_purchase"] = supplies_purchase_float
+        share_result["supplies_base"] = total_base
+        share_result["supplies_percent"] = (supplies_purchase_float / total_base * 100.0) if total_base else None
     if tmc_purchase_float:
-        result["tmc_purchase"] = tmc_purchase_float
-        result["tmc_base"] = total_base
-        result["tmc_percent"] = (tmc_purchase_float / total_base * 100.0) if total_base else None
+        share_result["tmc_purchase"] = tmc_purchase_float
+        share_result["tmc_base"] = total_base
+        share_result["tmc_percent"] = (tmc_purchase_float / total_base * 100.0) if total_base else None
     if total_purchase:
-        result["total_purchase"] = total_purchase
-        result["total_base"] = total_base
-        result["total_percent"] = (total_purchase / total_base * 100.0) if total_base else None
+        share_result["total_purchase"] = total_purchase
+        share_result["total_base"] = total_base
+        share_result["total_percent"] = (total_purchase / total_base * 100.0) if total_base else None
+
+    if not share_result:
+        return None
+
+    deviation_info = await _calculate_purchase_deviation(
+        revenue_data,
+        date_from,
+        date_to,
+        share_result,
+    )
+
+    return {"share": share_result, "deviation": deviation_info} if (share_result or deviation_info) else None
+
+
+async def _calculate_purchase_deviation(
+    revenue_data: dict,
+    date_from: str,
+    date_to: str,
+    share_info: dict[str, float],
+) -> dict[str, dict[str, float]] | None:
+    try:
+        segment_writeoffs = await get_segment_writeoff_totals(date_from, date_to)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Не удалось получить списания для расчёта отклонений: %s", exc)
+        return None
+
+    def _safe_float(value) -> float:
+        if value is None:
+            return 0.0
+        if isinstance(value, Decimal):
+            return float(value)
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
+
+    segment_writeoffs = {
+        key: _safe_float(value)
+        for key, value in (segment_writeoffs or {}).items()
+    }
+    writeoff_total_cost = _safe_float(revenue_data.get("writeoff_cost"))
+
+    kitchen_cost = (
+        _safe_float(revenue_data.get("kitchen_total_cost"))
+        + writeoff_total_cost
+        + segment_writeoffs.get("kitchen", 0.0)
+    )
+    bar_cost = _safe_float(revenue_data.get("bar_cost")) + segment_writeoffs.get("bar", 0.0)
+
+    result: dict[str, dict[str, float]] = {}
+
+    def _register_segment(key: str, cost_value: float) -> None:
+        base = _safe_float(share_info.get(f"{key}_base"))
+        purchase_percent = share_info.get(f"{key}_percent")
+        if not base or purchase_percent is None:
+            return
+        cost_percent = (cost_value / base * 100.0) if base else None
+        if cost_percent is None:
+            return
+        result[key] = {
+            "purchase_percent": purchase_percent,
+            "cost_percent": cost_percent,
+            "deviation": purchase_percent - cost_percent,
+            "cost_value": cost_value,
+        }
+
+    _register_segment("kitchen", kitchen_cost)
+    _register_segment("bar", bar_cost)
+
     return result or None
 
 
@@ -260,10 +366,10 @@ async def purchase_calendar_handler(call: types.CallbackQuery, state: FSMContext
             store_filter=PURCHASE_ACCOUNT_NAMES,
             account_type_filter=PURCHASE_ACCOUNT_TYPES,
         )
-        share_info = None
+        metrics = None
         if summary.rows_count:
-            share_info = await _calculate_purchase_share(date_start, date_end, summary)
-        text = _format_summary_text(summary, date_start, date_end, share_info)
+            metrics = await _calculate_purchase_metrics(date_start, date_end, summary)
+        text = _format_summary_text(summary, date_start, date_end, metrics)
         await msg.edit_text(text, parse_mode="Markdown")
     except Exception as exc:
         logger.exception("Ошибка при формировании отчёта по закупкам: %s", exc)

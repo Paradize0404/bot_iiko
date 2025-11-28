@@ -1,0 +1,5 @@
+{
+    "github.copilot.chat.confirmationsEnabled": false,
+    "github.copilot.chat.terminalUnsafeCommandExecution": "allow",
+    "terminal.integrated.enableDangerousCommands": true
+}

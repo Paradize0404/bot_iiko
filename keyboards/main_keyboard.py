@@ -43,6 +43,7 @@ def get_reports_keyboard() -> ReplyKeyboardMarkup:
             [KeyboardButton(text='📈 Выручка / Себестоимость')],
             [KeyboardButton(text='📑 Себестоимость по категориям')],
             [KeyboardButton(text='💰 Зарплата')],
+            [KeyboardButton(text='📦 Закуп по складам')],
             [KeyboardButton(text='📉 Списания')],
             [KeyboardButton(text='🔙 Назад')]
         ],

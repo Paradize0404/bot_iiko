@@ -1,0 +1,1385 @@
+API Documentation Page1 of 30
+All rights reserved © Company Inc., 2023
+1.OLAP-отчеты
+OLAP-отчет
+Версия iiko: 3.9
+Параметры запроса
+https://host:port/resto/api/reports/olap
+Название Значение Описание
+report SALES-Попродажам
+TRANSACTIONS-Потранзакциям
+DELIVERIES-Подоставкам
+STOCK-Контрольхранения
+Типотчета
+summary
+true-вычислятьитоговыезначения
+false-невычислятьитоговыезначения
+Вычислятьлиитоговыезначения.
+Поумолчаниювысталенtrue.При
+значенииfalseотчетстроится
+намногобыстрее.
+сVersion (iiko) 5.3
+С версии 9.1.2 значение по
+умолчанию false.
+groupRow Полягруппировки,например:
+groupRow=WaiterName&
+groupRow=OpenTime
+Дляопределениясписка
+доступныхполейсм.:
+· ОписаниеполейOLAP
+отчетапопродажам
+· ОписаниеполейOLAP
+отчетапопроводкам
+· ОписаниеполейOLAP
+отчетаподоставкам
+ПополюможнопроводитьAPI Documentation Page2 of 30
+All rights reserved © Company Inc., 2023
+Что в ответе
+Структура report.
+Пример запроса
+Название Значение Описание
+группировку,еслизначениев
+колонкеGroupingдляполяравно
+true
+groupCol Полядлявыделениязначенийпоколонкам Дляопределениясписка
+доступныхполейсм.:
+· ОписаниеполейOLAP
+отчетапопродажам
+· ОписаниеполейOLAP
+отчетапопроводкам
+· ОписаниеполейOLAP
+отчетаподоставкам
+Пополюможнопроводить
+группировку,еслизначениев
+колонкеGroupingдляполяравно
+true
+agr Поляагрегации,например:
+agr=DishDiscountSum&agr=VoucherNum
+· Дляопределениясписка
+доступныхполейсм.:
+o Описаниеполей
+OLAPотчетапо
+продажам
+o Описаниеполей
+OLAPотчетапо
+проводкам
+o Описаниеполей
+OLAPотчетапо
+доставкам
+Пополюможнопроводить
+агрегацию,еслизначениев
+колонкеAggregationдляполя
+равноtrue
+from DD.MM.YYYY Начальнаядата
+to DD.MM.YYYY КонечнаядатаAPI Documentation Page3 of 30
+All rights reserved © Company Inc., 2023
+Описание полейOLAP-отчетов
+[+]Описание полейOLAP-отчета подоставкам
+[-] Описание полейOLAP-отчета подоставкам
+https://localhost:8080/resto/api/reports/olap?key=ec621550-afae-
+133e-80c8-
+76155db2b268&report=SALES&from=01.12.2014&to=18.12.2014&groupRow=
+WaiterName&groupRow=OpenTime&agr=fullSum&agr=OrderNum
+Name Description Aggreatio
+n
+Groupin
+g
+Filterin
+g Type Value
+CloseTime Время закрытия false true true DATETIM
+E
+Delivery.ActualTime Фактическое
+время доставки false true true DATETIM
+E
+Delivery.Address Адрес false true true STRING
+Delivery.BillTime Время печати
+накладной false true true DATETIM
+E
+Delivery.CancelCause
+Причина
+отмены
+доставки
+false true true STRING
+Delivery.City Город false true true STRING
+Delivery.CloseTime Время закрытия
+доставки false true true DATETIM
+E
+Delivery.CookingToSendDuration
+Длит:
+посл.серв.печат
+ь-отправка
+true false false INTEGERAPI Documentation Page4 of 30
+All rights reserved © Company Inc., 2023
+Delivery.Courier Курьер false true true STRING
+Delivery.CustomerCardNumber
+Номеркарты
+клиента
+доставки
+false true true STRING
+Delivery.CustomerCardType
+Типкарты
+клиента
+доставки
+false true true STRING
+Delivery.CustomerComment Комментарийк
+клиенту false true true STRING
+Delivery.CustomerCreatedDate
+(до версии4.2;в 4.2+ deprecated,
+замененона
+Delivery.CustomerCreatedDateTyped
+)
+Датасоздания
+клиента false true true STRING
+Delivery.CustomerCreatedDateTyped
+(4.2+)
+Датасоздания
+клиента false true true DATE  
+Delivery.CustomerMarketingSource Реклама
+клиента false true true STRING
+Delivery.CustomerName ФИОклиента
+доставки false true true STRING
+Delivery.Delay Опоздание
+доставки(мин) false true true INTEGER
+Delivery.DelayAvg Ср.опоздание
+доставки(мин) true false false AMOUNTAPI Documentation Page5 of 30
+All rights reserved © Company Inc., 2023
+Delivery.DeliveryComment Комментарийк
+доставке false true true STRING
+Delivery.DeliveryOperator Оператор
+доставки false true true STRING
+Delivery.Email e-mail доставки false true true STRING
+Delivery.ExpectedTime Планируемое
+время доставки false true true DATETIM
+E
+Delivery.MarketingSource Реклама false true true STRING
+Delivery.Number Номердоставки false true true INTEGER
+Delivery.Phone Телефон
+доставки false true true STRING
+Delivery.PrintTime Время печати
+доставки false true true DATETIM
+E
+Delivery.Region Район false true true STRING
+Delivery.SendTime Время отправки
+доставки false true true DATETIM
+E
+Delivery.ServiceType Типдоставки false true true ENUM
+PICKUP
+COURIE
+RAPI Documentation Page6 of 30
+All rights reserved © Company Inc., 2023
+[+]Описание полейOLAP отчета попроводкам
+[-] Описание полейOLAP отчета попроводкам
+Delivery.SourceKey Источник
+доставки false true true STRING
+Delivery.Street Улица false true true STRING
+Delivery.WayDuration Время в
+пути(мин) false true true INTEGER
+Delivery.WayDurationAvg Ср.время в
+пути(мин) true false false AMOUNT
+Delivery.WayDurationSum Сумм.времяв
+пути(мин) true false false INTEGER
+DishServicePrintTime.Max
+Сервисная
+печать
+последнего
+блюда
+true false false DATETIM
+E
+Поляагрегации, учитывающиеначальныйостатоктовараи денежный остаток(StartBalance.Amount,
+StartBalance.Money,FinalBalance.Amount, FinalBalance.Money) вычисляютсясуммированиемвсей таблицы
+проводокза все время работысистемы(всей базы данных) безкаких-либо оптимизаций. Тоесть, такой
+запрос можетвыполнятьсяоченьдолгои замедлятьработусервера.
+Если начальныйостатокнеобходим,оставляйте в этомOLAP-запросе толькоте полягруппировки,по
+которымон действительно необходим(какправило, этоAccount.Nameи Product.Name), и вызывайтетакой
+запрос какможнорежеи в не рабочеевремя.
+В 5.2 добавленоAPI для быстрогополученияостатков:Отчеты по балансам. Во всехслучаях
+рекомендуетсяпользоватьсяим вместоOLAP.
+В 5.5 OLAP-отчетыс остаткамиоптимизированыс использованиембалансовых таблицATransactionSum,
+ATransactionBalance,при условии, чтоприменяютсягруппировкии фильтрыпо полямиз этих таблиц,см.
+признак StartBalanceOptimizableв описании полей.
+Тоесть, правильно составленный запрос приведетк суммированиюне всей таблицыпроводок,а только
+лишь открытогопериода.Обратитеособое внимание на то,чтооптимизированотолькополеAccount.Name
+(счет"текущей"стороныпроводки,в томчисле склад), а не Store (первый попавшийся "склад" проводки,API Documentation Page7 of 30
+All rights reserved © Company Inc., 2023
+взятый из: левой, правой части проводки,строки документаили самогодокумента).
+Склад всегда,когдатольковозможно,следуетбратьиз поляAccount.Name("Счет"),а не Store ("Склад"),
+оно вычисляется гораздобыстрее.
+Name Description Aggrea
+tion
+Grou
+ping
+Filte
+rig
+StartBakanceOpti
+mizable Type Value
+Account.AccountHierarch
+yFull
+Иерархия
+счета false true true true STRIN
+G
+Account.AccountHierarch
+ySecond
+Счет2-го
+уровня false true true true STRIN
+G
+Account.AccountHierarch
+yThird
+Счет3-го
+уровня false true true true STRIN
+G
+Account.AccountHierarch
+yTop
+Счет1-го
+уровня false true true true STRIN
+G
+Account.Code Кодсчета false true true true STRIN
+G
+Account.CounteragentTyp
+e
+Тип
+контрагента false true true true ENUM
+Расшифровки
+кодовбазовых
+типов#Тип
+Контрагента
+Account.Group Группасчета false true true true ENUM
+Расшифровки
+кодовбазовых
+типов#Группа
+счетаAPI Documentation Page8 of 30
+All rights reserved © Company Inc., 2023
+Account.IsCashFlowAcco
+unt
+Участвуетли
+счетв ДДС false true true true ENUM
+Расшифровки
+кодовбазовых
+типов#Участв
+уетлисчетв
+ДДС
+Account.Name Счет false true true true STRIN
+G
+Счет(в том
+числе склад)
+Account.StoreOrAccount Склад/счет false true true true ENUM
+Расшифровки
+кодовбазовых
+типов#Счет/С
+клад
+Account.Type Типсчета false true true true ENUM
+Расшифровки
+кодовбазовых
+типов#Тип
+счета
+Amount Количество true false false - AMOU
+NT
+Amount.In Приход(кол-
+во) true false false - AMOU
+NT
+Amount.Out Расход(кол-
+во) true false false - AMOU
+NT
+Amount.StoreInOut  (до
+версии4.3;в 4.3+
+deprecated, замененона
+Amount.StoreInOutTyped
+)
+Оборот
+эл.номенклат
+уры
+true false false - STRIN
+G
+Amount.StoreInOutTyped
+(4.3+, взамен
+Amount.StoreInOut)
+Оборот
+эл.номенклат
+уры
+true false false - AMOU
+NT  API Documentation Page9 of 30
+All rights reserved © Company Inc., 2023
+CashFlowCategory СтатьяДДС false true true true STRIN
+G
+CashFlowCategory.Hierar
+chy
+Иерархия
+статейДДС false true true true STRIN
+G
+CashFlowCategory.Hierar
+chyLevel1
+СтатьяДДС
+1-гоуровня false true true true STRIN
+G
+CashFlowCategory.Hierar
+chyLevel2
+СтатьяДДС
+2-гоуровня false true true true STRIN
+G
+CashFlowCategory.Hierar
+chyLevel3
+СтатьяДДС
+3-гоуровня false true true true STRIN
+G
+CashFlowCategory.Type Типстатьи
+ДДС false true true true ENUM
+Расшифровки
+кодовбазовых
+типов#Тип
+статьиДДС
+Comment Комментарий false true true false STRIN
+G
+Conception Концепция false true true true STRIN
+G
+Conception.Code Код
+концепции false true true true STRIN
+G
+Contr-Account.Code Код
+корр.счета false true true false STRIN
+G
+Contr-Account.Group Группа false true true false ENUM Расшифровки
+кодовбазовыхAPI Documentation Page10 of 30
+All rights reserved © Company Inc., 2023
+корр.счета типов#Группа
+счета 
+Contr-Account.Name Корр.Счет/Ск
+лад false true true false STRIN
+G
+Contr-Account.Type Тип
+корр.счета false true true false ENUM
+Расшифровки
+кодовбазовых
+типов#Тип
+счета 
+Contr-Amount Корр.количес
+тво true false false false AMOU
+NT
+Contr-
+Product.AccountingCateg
+ory
+Корр.Бухгалт
+ерская
+категория
+false true true false STRIN
+G
+Contr-
+Product.AlcoholClass
+Класс
+алкогольной
+продукции
+false true true false STRIN
+G
+Contr-
+Product.AlcoholClass.Cod
+e
+Кодкласса
+алкогольной
+продукции
+false true true false STRIN
+G
+Contr-
+Product.AlcoholClass.Gro
+up
+Группа
+алкогольной
+продукции
+false true true false STRIN
+G
+Contr-
+Product.AlcoholClass.Typ
+e
+Тип
+алкогольной
+продукции
+false true true false ENUM
+Расшифровки
+кодовбазовых
+типов#Тип
+алкогольной
+продукции
+Contr-Product.Category Корр.Категор
+ия
+false true true false STRINAPI Documentation Page11 of 30
+All rights reserved © Company Inc., 2023
+номенклатур
+ы
+G
+Contr-
+Product.CookingPlaceTyp
+e
+Корр.Тип
+места
+приготовлени
+я
+false true true false STRIN
+G
+Contr-Product.Hierarchy
+Корр.Иерархи
+я
+номенклатур
+ы
+false true true false STRIN
+G
+Contr-
+Product.MeasureUnit
+Корр.Единиц
+а измерения false true true false STRIN
+G
+Contr-Product.Name
+Корр.Элемент
+номенклатур
+ы
+false true true false STRIN
+G
+Contr-Product.Num
+Корр.Артикул
+элемента
+номенклатур
+ы
+false true true false STRIN
+G
+Contr-
+Product.SecondParent
+Корр.Группа
+номенклатур
+ы 2-гоуровня
+false true true false STRIN
+G
+Contr-
+Product.ThirdParent
+Корр.Группа
+номенклатур
+ы 3-гоуровня
+false true true false STRIN
+G
+Contr-Product.TopParent
+Корр.Группа
+номенклатур
+ы 1-гоуровня
+false true true false STRIN
+GAPI Documentation Page12 of 30
+All rights reserved © Company Inc., 2023
+Contr-Product.Type
+Корр.Тип
+элемента
+номенклатур
+ы
+false true true false ENUM
+Расшифровки
+кодовбазовых
+типов#Тип
+элемента
+номенклатуры
+Counteragent.Name Контрагент false true true true STRIN
+G
+DateTime (доверсии4.2;
+в 4.2+ deprecated,
+замененона
+DateTime.Typed)
+Датаивремя false true true true* STRIN
+G
+DateTime.Typed(4.2+) Датаивремя false true true true* DATET
+IME  
+DateTime.Date (до
+версии4.2;в 4.2+
+deprecated, замененона
+DateTime.DateTyped)
+Учетныйдень false true true true* STRIN
+G
+DateTime.DateTyped
+(4.2+) Учетныйдень false true true true* DATE  
+DateTime.DayOfWeak День недели false true true true* STRIN
+G
+DateTime.Hour Час false true true true* STRIN
+G
+DateTime.Month Месяц false true true true* STRIN
+G
+DateTime.Year Год false true true true* STRIN
+G
+DateSecondary.DateTyped
+Дата
+проводки false true true   DATE  API Documentation Page13 of 30
+All rights reserved © Company Inc., 2023
+(добавленов 6.0)
+DateSecondary.DateTime
+Typed(добавленов 6.0)
+Датаивремя
+проводки false true true   DATET
+IME  
+Department Торговое
+предприятие false true true true STRIN
+G
+Department.Category1 Категория1 false true true true STRIN
+G
+Department.Category2 Категория2 false true true true STRIN
+G
+Department.Category3 Категория3 false true true true STRIN
+G
+Department.Category4 Категория4 false true true true STRIN
+G
+Department.Category5 Категория5 false true true true STRIN
+G
+Department.Code
+Код
+подразделени
+я
+false true true true STRIN
+G
+Department.JurPerson Юридическое
+лицо false true true true STRIN
+G
+Document Номер
+документа false true true false STRIN
+G
+FinalBalance.Amount Конечный
+остаток
+true false false - AMOU Тяжелый
+запрос,API Documentation Page14 of 30
+All rights reserved © Company Inc., 2023
+товара NT рекомендуется
+запускать
+тольконочью.
+См. выше.
+FinalBalance.Money
+Конечный
+денежный
+остаток
+true false false - MONE
+Y
+Тяжелый
+запрос,
+рекомендуется
+запускать
+тольконочью.
+См. выше.
+PercentOfSummary.ByCo
+l % постолбцу true false false false PERCE
+NT
+PercentOfSummary.ByRo
+w % построке true false false false PERCE
+NT
+Product.AccountingCateg
+ory
+Бухгалтерска
+я категория false true true true STRIN
+G
+Product.AlcoholClass
+Класс
+алкогольной
+продукции
+false true true true STRIN
+G
+Product.AlcoholClass.Cod
+e
+Кодкласса
+алкогольной
+продукции
+false true true true STRIN
+G
+Product.AlcoholClass.Gro
+up
+Группа
+алкогольной
+продукции
+false true true true STRIN
+G
+Product.AlcoholClass.Typ
+e
+Тип
+алкогольной
+продукции
+false true true true ENUM
+Расшифровки
+кодовбазовых
+типов#Тип
+алкогольной
+продукцииAPI Documentation Page15 of 30
+All rights reserved © Company Inc., 2023
+Product.AvgSum Средняяцена true false false - MONE
+Y
+Product.Category
+Категория
+номенклатур
+ы
+false true true true STRIN
+G
+Product.CookingPlaceTyp
+e
+Типместа
+приготовлени
+я
+false true true true STRIN
+G
+Product.Hierarchy
+Иерархия
+номенклатур
+ы
+false true true true STRIN
+G
+Product.MeasureUnit Единица
+измерения false true true true STRIN
+G
+Product.Name
+Элемент
+номенклатур
+ы
+false true true true STRIN
+G
+Product.Num
+Артикул
+элемента
+номенклатур
+ы
+false true true true STRIN
+G
+Product.SecondParent
+Группа
+номенклатур
+ы 2-гоуровня
+false true true true STRIN
+G
+Product.ThirdParent
+Группа
+номенклатур
+ы 3-гоуровня
+false true true true STRIN
+G
+Product.TopParent Группа
+номенклатур
+false true true true STRINAPI Documentation Page16 of 30
+All rights reserved © Company Inc., 2023
+ы 1-гоуровня G
+Product.Type
+Типэлемента
+номенклатур
+ы
+false true true true ENUM
+Расшифровки
+кодовбазовых
+типов#Тип
+элемента
+номенклатуры 
+ 
+Session.CashRegister Касса false true true false STRIN
+G
+Session.Group Группа false true true false STRIN
+G
+Session.RestaurantSection Отделение false true true false STRIN
+G
+StartBalance.Amount
+Начальный
+остаток
+товара
+true false false - AMOU
+NT
+Тяжелый
+запрос,
+рекомендуется
+запускать
+тольконочью.
+См. выше.
+StartBalance.Money
+Начальный
+денежный
+остаток
+true false false - MONE
+Y
+Тяжелый
+запрос,
+рекомендуется
+запускать
+тольконочью.
+См. выше.
+Store Склад false true true false STRIN
+G
+Склад: первый
+попавшийся
+склад
+проводки,
+взятый из:
+левой,правой
+части
+проводки,
+строки
+документаили
+самогоAPI Documentation Page17 of 30
+All rights reserved © Company Inc., 2023
+документа.
+Sum.Incoming Сумма
+прихода true false false - MONE
+Y
+Sum.Outgoing Сумма
+расхода true false false - MONE
+Y
+Sum.PartOfIncome % отвыручки true false false - PERCE
+NT
+Sum.PartOfSummaryByC
+ol
+% суммыот
+итогапо
+столбцам
+true false false - PERCE
+NT
+Sum.PartOfSummaryByR
+ow
+% суммыот
+итогапо
+строкам
+true false false - PERCE
+NT
+Sum.PartOfTotalIncome % отобщей
+выручки true false false - PERCE
+NT
+Sum.ResignedSum Сумма true false false - MONE
+Y
+TransactionSide Дебет/Кредит false true true false ENUM
+Расшифровки
+кодовбазовых
+типов#Дебит/
+Кредит
+TransactionType Тип
+транзакции false true true false ENUM
+TransactionType.Code Код false true true false OBJECAPI Documentation Page18 of 30
+All rights reserved © Company Inc., 2023
+* группировкиподатеотбрасываютсяпривычисленииначальныхостатков
+[+]Описание полейOLAP отчета попродажам
+[-] Описание полейOLAP отчета попродажам
+транзакции T
+Name Description Descripti
+onEng
+Aggreat
+ion
+Group
+ing
+Filte
+rig Type Value
+AuthUser Авторизовал Authorise
+d by false true true STRING
+Banquet Банкет Banquet false true true ENUM TRUE
+FALSE
+Bonus.CardNumber
+Номер
+бонусной
+карты
+Bonus
+card
+number
+false true true STRING
+Bonus.Sum Суммабонуса Bonus
+amount true false false MONEY
+Bonus.Type Типбонуса Bonus
+type false true true STRING
+Card Карта
+авторизации
+Authorisa
+tioncard false true true STRING
+CardNumber Номеркарты
+оплаты
+Pay card
+type false true true STRING
+CardOwner Владелец
+картыгостя
+Guest
+cardholde
+r
+false true true STRING
+CardType Кредитная
+карта
+Credit
+card false true true STRINGAPI Documentation Page19 of 30
+All rights reserved © Company Inc., 2023
+Cashier Кассир Cashier false true true STRING
+CashLocation Расположени
+е кассы
+Cash
+register
+location
+false true true STRING
+CashRegisterName Касса Cash
+register false true true STRING
+CloseTime Время
+закрытия
+Closing
+time false true true DATETI
+ME
+Comment Комментарий
+кблюду
+Item
+comment false true true STRING
+Conception Концепция Concept false true true STRING
+CookingPlace
+Место
+приготовлени
+я
+Productio
+n place false true true STRING
+CreditUser Вкредитна... Credited
+to... false true true STRING
+DayOfWeekOpen День недели Day of
+week false true true STRING
+DeletedWithWriteoff Блюдо
+удалено
+Item
+deleted false true true ENUM
+Расшифров
+кикодов
+базовых
+типов#Тип
+ы удаления
+блюд
+DeletionComment
+Комментарий
+кудалению
+блюда
+Item
+deletion
+comment
+false true true STRINGAPI Documentation Page20 of 30
+All rights reserved © Company Inc., 2023
+Delivery.IsDelivery Доставка Delivery false true true ENUM
+Расшифров
+кикодов
+базовых
+типов#При
+знак
+доставки
+Department Торговое
+предприятие Outlet false true true STRING
+DiscountPercent Процент
+скидки
+Discount
+rate true true true PERCE
+NT
+DiscountSum Сумма
+скидки
+Discount
+amount true false true MONEY
+discountWithoutVAT
+Сумма
+скидкибез
+НДС не
+включенного
+в стоимость
+Discount
+amount
+excl. VAT
+not
+included
+inthe
+cost
+true false true MONEY
+DishAmountInt Количество
+блюд
+Number
+of items true true true AMOU
+NT
+DishCategory Категория
+блюда
+Item
+category false true true STRING
+DishCode Кодблюда Item code false true true STRING
+DishCode.Quick Кодбыстрого
+набора блюда
+Item
+quick
+code
+false true true STRING
+DishDiscountSumInt Суммасо
+скидкой
+Amount
+with
+discount
+true false false MONEYAPI Documentation Page21 of 30
+All rights reserved © Company Inc., 2023
+DishDiscountSumInt.average Средняя
+суммазаказа
+Average
+bill
+amount
+true false false MONEY
+DishDiscountSumInt.averageByGues
+t
+Средняя
+выручкас
+гостя
+Average
+revenue
+per guest
+true false false MONEY
+DishDiscountSumInt.averagePrice Средняяцена
+без НДС
+Average
+price
+(VAT
+exclusive
+)
+true false false MONEY
+DishDiscountSumInt.withoutVAT
+Суммасо
+скидкойбез
+НДС
+Amount
+with
+discount
+VAT
+exclusive
+true false false MONEY
+DishForeignName
+Наименовани
+е блюдана
+иностранном
+языке
+Item
+name ina
+foreign
+language
+false true true STRING
+DishFullName
+Полное
+наименование
+блюда
+Fullname
+of the
+item
+false true true STRING
+DishGroup Группаблюда Item
+group false true true STRING
+DishGroup.Hierarchy Иерархия
+блюда
+Item
+hierarchy false true true STRING
+DishGroup.Num Кодгруппы
+блюда
+Item
+group
+code
+false true true STRING
+DishGroup.SecondParent Группаблюда
+2-гоуровня
+Level 2
+item
+group
+false true true STRINGAPI Documentation Page22 of 30
+All rights reserved © Company Inc., 2023
+DishGroup.ThirdParent Группаблюда
+3-гоуровня
+Level 3
+item
+group
+false true true STRING
+DishGroup.TopParent Группаблюда
+1-гоуровня
+Level 1
+item
+group
+false true true STRING
+DishMeasureUnit Единица
+измерения
+Measure
+ment unit false true true STRING
+DishName Блюдо Item false true true STRING
+DishReturnSum Сумма
+возврата
+Void
+amount true true true MONEY
+DishServicePrintTime Сервисная
+печатьблюда
+Service
+printing
+item
+false true true DATETI
+ME
+DishServicePrintTime.Max
+Сервисная
+печать
+последнего
+блюда
+Service
+printing
+latest
+item
+true false false DATETI
+ME
+DishServicePrintTime.OpenToLastPr
+intDuration
+Длит: откр.-
+посл.серв.печ
+ать
+Duration:
+open
+latest
+serv.
+print.
+true false false INTEGE
+R
+DishSumInt Суммабез
+скидки
+Amount
+without
+discount
+true false false MONEY
+DishType Типтовара Stocklist
+type false true true ENUM
+Расшифров
+кикодов
+базовых
+типов#Тип
+товараAPI Documentation Page23 of 30
+All rights reserved © Company Inc., 2023
+fullSum
+Суммабез
+НДС не
+включенного
+в стоимость
+Amount
+excl. VAT
+not
+included
+inthe
+cost
+true false true MONEY
+GuestNum Количество
+гостей
+Number
+of guests true true true AMOU
+NT
+GuestNum.Avg Ср.кол-во
+гостей начек
+AvgNum
+ber of
+guestsper
+receipt
+true false false AMOU
+NT
+HourClose Час закрытия Closing
+hour false true true STRING
+HourOpen Час открытия Opening
+hour false true true STRING
+IncentiveSumBase.Sum Мотивационн
+ыйбонус
+Incentive
+payment true false false MONEY
+IncreasePercent Процент
+надбавки
+Surcharge
+rate true true true PERCE
+NT
+IncreaseSum Сумма
+надбавки
+Surcharge
+amount true true true MONEY
+JurName Юридическое
+лицо
+Legal
+entity false true true STRING
+Mounth Месяц Month false true true STRING
+NonCashPaymentType Безналичный
+типоплаты
+Non-cash
+payment
+type
+false true true STRING
+NonCashPaymentType.DocumentTyp Тип Documen false true true ENUM РасшифровAPI Documentation Page24 of 30
+All rights reserved © Company Inc., 2023
+e документа ttype кикодов
+базовых
+типов#Тип
+документа
+OpenDate (до версии4.2;в 4.2+
+deprecated, замененона
+OpenDate.Typed)
+Учетныйдень   false true true STRING
+OpenDate.Typed(4.2+) Учетныйдень   false true true DATE  
+OpenTime Время
+открытия
+Opening
+time false true true DATETI
+ME
+OperationType Операция Operation false true true ENUM
+Расшифров
+кикодов
+базовых
+типов#Тип
+операции
+OrderDeleted Заказудален Order
+deleted false true true ENUM
+Расшифров
+кикодов
+базовых
+типов#При
+знак
+удаления
+заказа
+OrderDiscount.GuestCard Гостевая
+карта
+Guest
+card false true true STRING
+OrderDiscount.Type Типскидки Discount
+type false true true STRING
+OrderIncrease.Type Типнадбавки Typeof
+surcharge false true true STRING
+OrderItems Позицийчека Order
+items true false false INTEGE
+RAPI Documentation Page25 of 30
+All rights reserved © Company Inc., 2023
+OrderNum Номерчека Receipt
+number true true true INTEGE
+R
+OrderTime.AverageOrderTime Ср.время
+обсл.(мин)
+AvgServi
+ng time
+(min)
+true false false AMOU
+NT
+OrderTime.AveragePrechequeTime Ср.время в
+пречеке(мин)
+Avgtime
+inguest
+bill(min)
+true false false AMOU
+NT
+OrderTime.OrderLength
+Время
+обслуживани
+я (мин)
+Serving
+time
+(min)
+false true true INTEGE
+R
+OrderTime.OrderLengthSum
+Время
+обсл.сумм.(м
+ин)
+Serving
+time
+(min)
+true false false INTEGE
+R
+OrderTime.PrechequeLength Время в
+пречеке(мин)
+Timein
+guest bill
+(min)
+false true true INTEGE
+R
+OrderType Типзаказа Order
+type false true true STRING
+OrderWaiter.Name Официант
+заказа
+Waiterfor
+the order false true true STRING
+OriginName Источник
+заказа
+Order
+origin false true true STRING
+PayTypes Типоплаты Payment
+type false true true STRING
+PayTypes.Combo Типоплаты
+(комб.)
+Payment
+type
+(comb.)
+false true true STRINGAPI Documentation Page26 of 30
+All rights reserved © Company Inc., 2023
+PayTypes.Group Группа
+оплаты
+Payment
+group false true true ENUM
+Расшифров
+кикодов
+базовых
+типов#Гру
+ппаоплаты
+PayTypes.IsPrintCheque Фиск.тип
+оплаты
+Fisc.
+payment
+type
+false true true ENUM
+Расшифров
+кикодов
+базовых
+типов#При
+знак
+фискально
+сти оплаты
+PayTypes.VoucherNum Количество
+ваучеров
+Number
+of
+vouchers
+true false false INTEGE
+R
+PercentOfSummary.ByCol % постолбцу % by
+column true false false PERCE
+NT
+PercentOfSummary.ByRow % построке % by row true false false PERCE
+NT
+PrechequeTime Время
+пречека
+Guest bill
+time false true true DATETI
+ME
+PriceCategory
+Ценовая
+категория
+клиента
+Customer
+price
+category
+false true true STRING
+PriceCategoryCard ЦКномер
+карты
+Price
+Category
+Card
+Number
+false true true STRING
+PriceCategoryDiscountCardOwner ЦКвладелец
+карты
+Price
+Category
+Cardhold
+er
+false true true STRINGAPI Documentation Page27 of 30
+All rights reserved © Company Inc., 2023
+PriceCategoryUserCardOwner ЦК
+контрагент
+Price
+Category
+Card
+Owner
+false true true STRING
+ProductCostBase.MarkUp Наценка(%) Markup
+(%) true false false PERCE
+NT
+ProductCostBase.OneItem Себестоимост
+ьединицы
+Costper
+unit true false false MONEY
+ProductCostBase.Percent Себестоимост
+ь(%) Cost(%) true false false PERCE
+NT
+ProductCostBase.ProductCost Себестоимост
+ь Cost true false false MONEY
+ProductCostBase.Profit Наценка Markup true false false MONEY
+RemovalType
+Причина
+удаления
+блюда
+Reason
+for item
+deletion
+false true true STRING
+RestaurantSection Отделение Room false true true STRING
+RestorauntGroup Группа Group false true true STRING
+SessionNum Номерсмены Shift
+number false true true INTEGE
+R
+SoldWithDish Проданос
+блюдом
+Soldwith
+item false true true STRINGAPI Documentation Page28 of 30
+All rights reserved © Company Inc., 2023
+Store.Name Сосклада From
+storage false true true STRING
+StoreTo На склад To
+storage false true true STRING
+Storned Возвратчека Void
+receipt false true true ENUM TRUE
+FALSE
+sumAfterDiscountWithoutVAT
+Суммасо
+скидкойбез
+НДС не
+включенного
+в стоимость
+Amount
+with
+discount
+excl. VAT
+not
+included
+inthe
+cost
+true false true MONEY
+TableNumInt(до 5.1;в 5.1+
+замененонаTableNum) Номерстола   false true true STRING
+TableNum(5.1+) Номерстола   false true true INTEGE
+R  
+UniqOrderId Чеков Orders true false false INTEGE
+R
+UniqOrderId.OrdersCount Заказов Orders true false false AMOU
+NT
+VAT.Percent НДС(%) VAT(%) true true true PERCE
+NT
+VAT.Sum НДС по
+чекам(Сумма)
+VATby
+bill
+(Amount)
+true true true MONEY
+WaiterName Официант
+блюда
+Item
+waiter false true true STRINGAPI Documentation Page29 of 30
+All rights reserved © Company Inc., 2023
+[+]Описание полейOLAP отчета поконтролюхранения
+[-] Описание полейOLAP отчета поконтролюхранения
+WriteoffReason Причина
+списания
+Write-off
+reason false true true STRING
+WriteoffUser Списано на
+сотрудника
+Written
+offto
+employee
+false true true STRING
+YearOpen Год Year false true true STRING  
+Name Description Aggreation Grouping Type Value
+ProductNum Артикул false true STRING  
+ProductName Блюдо false true STRING  
+ProductAccountingCategory
+ 
+Бухгалтерская
+категория
+блюда
+false true STRING  
+EventDate Дата false true DATETIME  
+EventCookingDate Датаивремя
+приготовления false true DATETIME  
+ProductMeasureUnit Единицы
+измерения false true
+STRING
+ 
+ 
+ProductCategory Категория
+блюда false true STRING  
+Department.Code Код
+подразделения false true STRING  
+Amount Количество false true AMOUNT  
+ProductExpirationDuration
+Просрочкана
+момент
+продажи
+true false DATETIME  API Documentation Page30 of 30
+All rights reserved © Company Inc., 2023
+Name Description Aggreation Grouping Type Value
+ProductCostBase.OneItem Себестоимость
+единицы,р. true false
+MONEY
+ 
+ 
+ProductCostBase.ProductCost Себестоимость,
+р. true false
+MONEY
+ 
+ 
+StoreFrom Склад false true STRING  
+User Сотрудник false true STRING  
+AccountTo Счет false true STRING  
+Event.Type Типсобытия false true STRING  
+Department Торговое
+предприятие false true STRING  

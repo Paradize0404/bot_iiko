@@ -113,7 +113,7 @@ async def sync_nomenclature(api_rows: list[dict]):
         rows = [
             {
                 "id":       r["id"],
-                "name":     r.get("name"),
+                "name":     (r.get("name") or "").strip(),
                 "parent":   r.get("parent"),
                 "mainunit": r.get("mainUnit"),
                 "type":     r.get("type")

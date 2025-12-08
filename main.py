@@ -15,6 +15,7 @@ from db.employee_position_history_db import init_employee_position_history_db
 from db.settings_db import init_settings_table
 from db.departments_db import init_departments_table
 from services.position_monitor import run_periodic_monitoring
+from services.negative_transfer_scheduler import run_periodic_negative_transfer
 
 ## ────────────── Функция запуска бота ──────────────
 async def _startup():
@@ -32,6 +33,10 @@ async def _startup():
     # Первая проверка будет через 1 час после запуска, чтобы не замедлять старт бота
     asyncio.create_task(run_periodic_monitoring(24, delay_first_run=True))
     logging.info("🔄 Запущен периодический мониторинг изменений должностей (первая проверка через 1 час)")
+
+    # Ежедневное авто-перемещение по отрицательным остаткам: сразу при старте и далее каждый день в 08:00
+    asyncio.create_task(run_periodic_negative_transfer(run_immediately=True))
+    logging.info("🔄 Запущен планировщик авто-перемещений (первый запуск сразу, далее ежедневно 08:00)")
     
     # ensure Bot instance exists and use it for polling
     if config.bot is None:

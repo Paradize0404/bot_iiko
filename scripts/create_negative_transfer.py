@@ -24,6 +24,8 @@ from db.nomenclature_db import Nomenclature, async_session
 from handlers.common import STORE_CACHE, preload_stores
 from iiko.iiko_auth import get_auth_token, get_base_url
 from scripts.dump_stock_balances import fetch_stock_balances, to_float
+from services.internal_transfer import send_internal_transfer
+from services.nomenclature_scheduler import sync_nomenclature_and_balances
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger("auto_transfer")
@@ -33,25 +35,31 @@ SOURCE_STORE_NAME = "Хоз. товары Пиццерия"
 SECOND_GROUP_FILTER = "Расходные материалы"
 
 
+def _normalize_name(value: str | None) -> str:
+    return (value or "").strip()
+
+
 async def collect_negative_rows(date_from: str, date_to: str) -> list[dict[str, Any]]:
     rows = await fetch_stock_balances(date_from, date_to)
     result: list[dict[str, Any]] = []
     for row in rows:
-        store_name = (row.get("Account.Name") or "").strip()
+        store_name = _normalize_name(row.get("Account.Name"))
         if store_name not in TARGET_STORES:
             continue
-        second_group = (row.get("Product.SecondParent") or "").strip()
+        second_group = _normalize_name(row.get("Product.SecondParent"))
         if second_group != SECOND_GROUP_FILTER:
             continue
         amount = to_float(row.get("FinalBalance.Amount"))
         if amount >= 0:
             continue
+        row["_product_name_clean"] = _normalize_name(row.get("Product.Name"))
         result.append(row)
     return result
 
 
 async def load_products(rows: list[dict[str, Any]]) -> dict[str, tuple[str, str]]:
-    names = {row.get("Product.Name") for row in rows if row.get("Product.Name")}
+    names = {row.get("_product_name_clean") or _normalize_name(row.get("Product.Name")) for row in rows}
+    names.discard("")
     if not names:
         return {}
     async with async_session() as session:
@@ -59,25 +67,29 @@ async def load_products(rows: list[dict[str, Any]]) -> dict[str, tuple[str, str]
         result = await session.execute(stmt)
         mapping: dict[str, tuple[str, str]] = {}
         for name, product_id, measure in result:
-            mapping[name] = (product_id, measure)
+            mapping[_normalize_name(name)] = (product_id, measure)
         return mapping
 
 
 async def build_transfers(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
     products = await load_products(rows)
-    missing = {row.get("Product.Name") for row in rows if row.get("Product.Name") not in products}
+    missing = {
+        row.get("Product.Name") or ""
+        for row in rows
+        if (_normalize_name(row.get("Product.Name")) not in products)
+    }
     if missing:
         logger.warning("Не найдены в БД %d товаров: %s", len(missing), ", ".join(sorted(missing)))
 
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
-        product_name = row.get("Product.Name")
+        product_name = _normalize_name(row.get("Product.Name"))
         if not product_name:
             continue
         product_meta = products.get(product_name)
         if not product_meta:
             continue
-        store_name = (row.get("Account.Name") or "").strip()
+        store_name = _normalize_name(row.get("Account.Name"))
         amount = abs(to_float(row.get("FinalBalance.Amount")))
         if amount == 0:
             continue
@@ -113,34 +125,11 @@ async def resolve_store_id(name: str) -> str | None:
     return None
 
 
-async def send_transfer(store_from_id: str, store_to_id: str, items: list[dict[str, Any]], *, comment: str) -> str:
-    token = await get_auth_token()
-    base_url = get_base_url()
-    document = {
-        "dateIncoming": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-        "status": "PROCESSED",
-        "comment": comment,
-        "storeFromId": store_from_id,
-        "storeToId": store_to_id,
-        "items": [
-            {
-                "productId": item["productId"],
-                "amount": item["amount"],
-                "measureUnitId": item["measureUnitId"],
-            }
-            for item in items
-        ],
-    }
-    url = f"{base_url}/resto/api/v2/documents/internal_transfer"
-    params = {"key": token}
-    async with httpx.AsyncClient(verify=False, timeout=30.0) as client:
-        response = await client.post(url, params=params, json=document)
-        response.raise_for_status()
-        return response.text or "OK"
-
-
-async def main() -> None:
+async def run_negative_transfer(sync_before: bool = True) -> None:
     today = datetime.now().strftime("%d.%m.%Y")
+    if sync_before:
+        logger.info("🔄 Перед запуском обновляем номенклатуру")
+        await sync_nomenclature_and_balances()
     await preload_stores()
     store_from_id = await resolve_store_id(SOURCE_STORE_NAME)
     if not store_from_id:
@@ -165,10 +154,19 @@ async def main() -> None:
             continue
         comment = f"Авто-перемещение расходных материалов ({store_name})"
         logger.info("Отправляем %d позиций: %s → %s", len(items), SOURCE_STORE_NAME, store_name)
-        await send_transfer(store_from_id, store_id, items, comment=comment)
+        await send_internal_transfer(
+            store_from_id=store_from_id,
+            store_to_id=store_id,
+            items=items,
+            comment=comment,
+        )
         for item in items:
             logger.info(" • %s — %.3f", item.get("productName"), item.get("amount"))
     logger.info("Готово")
+
+
+async def main() -> None:
+    await run_negative_transfer()
 
 
 if __name__ == "__main__":

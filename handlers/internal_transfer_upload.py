@@ -9,13 +9,10 @@ from aiogram import Bot, Router, F, types
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from sqlalchemy import select
 from handlers.base_document import BaseDocumentHandler, _normalize_unit
-from handlers.common import STORE_CACHE, preload_stores, get_store_id_by_name, get_unit_name_by_id
-from iiko.iiko_auth import get_auth_token, get_base_url
-import httpx
-from datetime import datetime
+from handlers.common import preload_stores, get_store_id_by_name, get_unit_name_by_id
 from services.db_queries import DBQueries
+from services.internal_transfer import send_internal_transfer, TransferValidationError
 
 
 ## ────────────── Логгер и роутер для aiogram ──────────────
@@ -260,45 +257,53 @@ async def finalize_transfer(callback: types.CallbackQuery, state: FSMContext):
     
     await callback.message.edit_text("⏳ Отправляем в iiko...")
     
-    date_now = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-    document = {
-        "dateIncoming": date_now,
-        "status": "PROCESSED",
-        "comment": data.get("comment", ""),
-        "storeFromId": data.get("store_from_id"),
-        "storeToId": data.get("store_to_id"),
-        "items": [
-            {
-                "productId": item["id"],
-                "amount": item.get("quantity", 0),
-                "measureUnitId": item["mainunit"]
-            } for item in items
-        ]
-    }
-    
-    # Background send
+    transfer_items = [
+        {
+            "productId": item["id"],
+            "amount": item.get("quantity", 0),
+            "measureUnitId": item["mainunit"],
+        }
+        for item in items
+    ]
+
     chat_id = callback.message.chat.id
-    msg_id = callback.message.message_id
     bot = callback.message.bot
-    
-    token = await get_auth_token()
-    url = f"{get_base_url()}/resto/api/v2/documents/internal_transfer"
-    params = {"key": token}
-    
-    asyncio.create_task(_send_transfer(bot, chat_id, msg_id, url, params, document))
+    asyncio.create_task(
+        _send_transfer(
+            bot=bot,
+            chat_id=chat_id,
+            store_from_id=data.get("store_from_id"),
+            store_to_id=data.get("store_to_id"),
+            items=transfer_items,
+            comment=data.get("comment", ""),
+        )
+    )
     await state.clear()
 
 
-async def _send_transfer(bot: Bot, chat_id: int, msg_id: int, url: str, params: dict, document: dict):
+async def _send_transfer(
+    *,
+    bot: Bot,
+    chat_id: int,
+    store_from_id: str,
+    store_to_id: str,
+    items: list[dict],
+    comment: str,
+):
     """
     Фоновая задача отправки перемещения в iiko
     """
     try:
-        async with httpx.AsyncClient(verify=False) as client:
-            response = await client.post(url, params=params, json=document, timeout=30.0)
-            response.raise_for_status()
-        
+        await send_internal_transfer(
+            store_from_id=store_from_id,
+            store_to_id=store_to_id,
+            items=items,
+            comment=comment,
+        )
         await bot.send_message(chat_id, "✅ Перемещение успешно отправлено!")
-    except Exception as e:
-        logging.error(f"Transfer send error: {e}")
-        await bot.send_message(chat_id, f"❌ Ошибка отправки: {e}")
+    except TransferValidationError as err:
+        logging.error("Transfer validation error: %s", err)
+        await bot.send_message(chat_id, f"❌ Ошибка данных: {err}")
+    except Exception as err:  # noqa: BLE001
+        logging.exception("Transfer send error")
+        await bot.send_message(chat_id, f"❌ Ошибка отправки: {err}")

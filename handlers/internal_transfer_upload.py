@@ -146,7 +146,8 @@ async def search_products(message: types.Message, state: FSMContext):
     query = message.text.strip()
     await message.delete()
     
-    results = await DBQueries.search_nomenclature(query, types=["GOODS"], parents=None)
+    # Показываем только товары (GOODS), исключая заготовки/полуфабрикаты
+    results = await DBQueries.search_nomenclature(query, types=["GOODS"], parents=None, use_parent_filters=False)
     
     if not results:
         return await message.answer("🔎 Ничего не найдено.")

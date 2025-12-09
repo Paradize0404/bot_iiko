@@ -223,7 +223,13 @@ async def _start_manual_flow(callback: types.CallbackQuery, state: FSMContext):
     keyboard = await writeoff_handler.get_store_keyboard({})
     await state.set_state(WriteoffStates.Store)
     await state.update_data(prompt_msg_id=callback.message.message_id)
-    await callback.message.edit_text("🏬 С какого склада списываем?", reply_markup=keyboard)
+    try:
+        await callback.message.edit_text("🏬 С какого склада списываем?", reply_markup=keyboard)
+    except TelegramBadRequest as exc:
+        if "message is not modified" in str(exc).lower():
+            logger.debug("WRITEOFF prompt unchanged; skip edit")
+        else:
+            raise
 
 
 async def _prompt_template_choice(callback: types.CallbackQuery, state: FSMContext) -> bool:
@@ -352,6 +358,7 @@ async def choose_store(callback: types.CallbackQuery, state: FSMContext):
         "📂 Какой тип списания?",
         reply_markup=keyboard,
     )
+    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("w_type:"))
@@ -374,6 +381,7 @@ async def choose_type(callback: types.CallbackQuery, state: FSMContext):
         callback.message.chat.id,
         "📝 Введите причину списания:",
     )
+    await callback.answer()
 
 
 @router.message(WriteoffStates.Reason)
@@ -474,6 +482,7 @@ async def select_item(callback: types.CallbackQuery, state: FSMContext):
     await state.update_data(current_item=item, selection_msg_id=None, quantity_prompt_id=callback.message.message_id)
     await state.set_state(WriteoffStates.Quantity)
     await callback.message.edit_text(text)
+    await callback.answer()
 
 
 @router.message(WriteoffStates.Quantity)
@@ -553,6 +562,7 @@ async def finalize_writeoff(callback: types.CallbackQuery, state: FSMContext):
         return await callback.answer("❌ Добавьте хотя бы один товар")
     
     await callback.message.edit_text("⏳ Отправляем в iiko...")
+    await callback.answer()
     
     date_now = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
     document = {
@@ -594,10 +604,11 @@ async def _send_writeoff(bot: Bot, chat_id: int, msg_id: int, url: str, params: 
     Фоновая задача отправки акта списания в iiko
     """
     try:
-        async with httpx.AsyncClient(verify=False) as client:
-            response = await client.post(url, params=params, json=document, timeout=30.0)
+        timeout = httpx.Timeout(10.0, read=25.0)
+        async with httpx.AsyncClient(verify=False, timeout=timeout, follow_redirects=True) as client:
+            response = await client.post(url, params=params, json=document)
             response.raise_for_status()
-        
+
         logger.info("WRITEOFF document sent successfully: doc=%s", document)
         await bot.send_message(chat_id, "✅ Акт списания успешно отправлен!")
     except Exception as e:

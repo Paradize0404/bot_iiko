@@ -7,7 +7,7 @@ from datetime import datetime, time, timedelta
 from scripts.create_negative_transfer import run_negative_transfer
 
 logger = logging.getLogger(__name__)
-_RUN_HOUR = 8
+_RUN_HOUR = 7
 _SYNC_LOCK = asyncio.Lock()
 
 
@@ -21,7 +21,11 @@ def _next_run(ts: datetime) -> datetime:
 async def _run_once() -> None:
     async with _SYNC_LOCK:
         try:
+            start = datetime.now()
+            logger.info("🚚 Старт авто-перемещения (синхронизируем номенклатуру перед запуском)")
             await run_negative_transfer(sync_before=True)
+            duration = (datetime.now() - start).total_seconds()
+            logger.info("✅ Авто-перемещение завершено за %.1f c", duration)
         except Exception as exc:  # noqa: BLE001
             logger.exception("❌ Ошибка автоперемещения: %s", exc)
 

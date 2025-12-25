@@ -19,6 +19,7 @@ from handlers import (
     writeoff_upload,
     sales_olap_console,
     purchase_report,
+    supplier_balance_report,
     internal_transfer_upload,
     invoice,
 )
@@ -41,6 +42,7 @@ dp.include_router(departments_manager.router)
 dp.include_router(writeoff_upload.router)
 dp.include_router(sales_olap_console.router)
 dp.include_router(purchase_report.router)
+dp.include_router(supplier_balance_report.router)
 dp.include_router(document.router)
 dp.include_router(template_creation.router)
 dp.include_router(writeoff.router)

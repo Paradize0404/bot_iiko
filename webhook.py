@@ -12,6 +12,7 @@ from fastapi import FastAPI, Request
 from aiogram.types import Update
 import uvicorn
 from services.negative_transfer_scheduler import run_periodic_negative_transfer
+from scripts.low_stock_scheduler import run_periodic_low_stock
 from utils.db_stores import init_pool
 from handlers.template_creation import preload_stores
 load_dotenv()
@@ -32,6 +33,8 @@ async def on_startup():
     await preload_stores()
     # Запускаем авто-перемещения по отрицательным остаткам (раз в сутки, первый запуск сразу)
     asyncio.create_task(run_periodic_negative_transfer(run_immediately=True))
+    # Стоп-лист по min-остаткам: первый запуск сразу, далее каждые 2 часа
+    asyncio.create_task(run_periodic_low_stock())
     # ensure Bot instance exists at runtime
     if config.bot is None:
         config.bot = config.get_bot()

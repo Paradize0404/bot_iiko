@@ -158,24 +158,57 @@ async def _set_prompt_message(
     await state.update_data(prompt_msg_id=msg.message_id)
 
 
+async def _auto_finalize_template_document(state: FSMContext, bot: Bot, chat_id: int) -> None:
+    """Автоотправка акта по шаблону после ввода последней позиции."""
+    data = await state.get_data()
+    items = data.get("items", [])
+
+    non_zero_items = [item for item in items if item.get("quantity", 0) > 0]
+    if not non_zero_items:
+        await bot.send_message(chat_id, "❌ Документ не отправлен: все позиции с количеством 0")
+        await state.clear()
+        return
+
+    date_now = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+    document = {
+        "dateIncoming": date_now,
+        "status": "PROCESSED",
+        "comment": data.get("reason", ""),
+        "storeId": data.get("store_id"),
+        "accountId": data.get("account_id"),
+        "items": [
+            {
+                "productId": item["id"],
+                "amount": item.get("quantity", 0),
+                "measureUnitId": item["mainunit"]
+            } for item in non_zero_items
+        ]
+    }
+
+    status_msg = await bot.send_message(chat_id, "⏳ Отправляем акт по шаблону в iiko...")
+
+    token = await get_auth_token()
+    url = f"{get_base_url()}/resto/api/v2/documents/writeoff"
+    params = {"key": token}
+
+    logger.info(
+        "WRITEOFF (template) sending document: store=%s account=%s items=%d",
+        document.get("storeId"),
+        document.get("accountId"),
+        len(document.get("items", []))
+    )
+
+    asyncio.create_task(_send_writeoff(bot, chat_id, status_msg.message_id, url, params, document))
+    await state.clear()
+
+
 async def _prompt_next_template_item(chat_id: int, bot: Bot, state: FSMContext) -> None:
     data = await state.get_data()
     queue = data.get("template_queue", []) or []
     cursor = data.get("template_cursor", 0)
 
     if cursor >= len(queue):
-        await state.update_data(template_mode=False, template_queue=[], template_cursor=0)
-        await state.set_state(WriteoffStates.AddItems)
-        prompt_kb = InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text="✅ Отправить", callback_data="w_done")]]
-        )
-        await _set_prompt_message(
-            state,
-            bot,
-            chat_id,
-            "🔍 Введите часть названия товара или нажмите 'Отправить'.",
-            reply_markup=prompt_kb,
-        )
+        await _auto_finalize_template_document(state, bot, chat_id)
         return
 
     item = queue[cursor]
@@ -494,6 +527,9 @@ async def save_quantity(message: types.Message, state: FSMContext):
         quantity = float(message.text.replace(",", "."))
     except ValueError:
         return await message.answer("❌ Введите корректное число")
+
+    if quantity < 0:
+        return await message.answer("❌ Количество не может быть отрицательным")
     
     data = await state.get_data()
     item = data.get("current_item", {})
@@ -557,10 +593,15 @@ async def finalize_writeoff(callback: types.CallbackQuery, state: FSMContext):
     """
     data = await state.get_data()
     items = data.get("items", [])
-    
+
     if not items:
         return await callback.answer("❌ Добавьте хотя бы один товар")
-    
+
+    # Отбрасываем строки с нулевым количеством
+    non_zero_items = [item for item in items if item.get("quantity", 0) > 0]
+    if not non_zero_items:
+        return await callback.answer("❌ Во всех строках количество 0. Укажите количество > 0 хотя бы для одного товара", show_alert=True)
+
     await callback.message.edit_text("⏳ Отправляем в iiko...")
     await callback.answer()
     
@@ -576,7 +617,7 @@ async def finalize_writeoff(callback: types.CallbackQuery, state: FSMContext):
                 "productId": item["id"],
                 "amount": item.get("quantity", 0),
                 "measureUnitId": item["mainunit"]
-            } for item in items
+            } for item in non_zero_items
         ]
     }
     
@@ -611,6 +652,22 @@ async def _send_writeoff(bot: Bot, chat_id: int, msg_id: int, url: str, params: 
 
         logger.info("WRITEOFF document sent successfully: doc=%s", document)
         await bot.send_message(chat_id, "✅ Акт списания успешно отправлен!")
+    except httpx.HTTPStatusError as exc:
+        response = exc.response
+        body = response.text if response is not None else ""
+        snippet = body[:500] if body else ""
+        logger.error(
+            "WRITEOFF send error: status=%s url=%s body=%s document=%s",
+            getattr(response, "status_code", "n/a"),
+            getattr(response, "url", url),
+            snippet,
+            document,
+        )
+        human_body = snippet if snippet else "нет ответа"
+        await bot.send_message(
+            chat_id,
+            f"❌ iiko вернул {getattr(response, 'status_code', 'ошибку')}: {human_body}",
+        )
     except Exception as e:
         logger.exception("WRITEOFF send error")
         await bot.send_message(chat_id, f"❌ Ошибка отправки: {e}")

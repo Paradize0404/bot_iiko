@@ -1,0 +1,2661 @@
+{
+  "fetched_at": "2026-01-05T11:51:15.386169Z",
+  "count": 531,
+  "items": [
+    {
+      "store": "Бар Пиццерия",
+      "product": "Абрау дюрсо Пуарэ Груша",
+      "final_balance": 3.0
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Абрау дюрсо яблоко",
+      "final_balance": 4.0
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Апельсины",
+      "final_balance": 27.705959865
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Бадьян (анис)",
+      "final_balance": -0.001725
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Базилик",
+      "final_balance": 0.189666668
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Бобы тонка",
+      "final_balance": 0.025
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Ванилин",
+      "final_balance": 0.00482353
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Вишня зам.",
+      "final_balance": 15.747225806
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Вода из под крана",
+      "final_balance": 31.964992254
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Гвоздика немолотая",
+      "final_balance": 0.400963154
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Грейпфрут",
+      "final_balance": 13.05330435
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Желатин",
+      "final_balance": 0.0016
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Какао порошок",
+      "final_balance": -0.01
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Кардамон",
+      "final_balance": 0.8090625
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Клубника зам.",
+      "final_balance": 6.483
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Кола 0,25",
+      "final_balance": -4.0
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Корень имбиря",
+      "final_balance": 0.080753406
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Кориандр",
+      "final_balance": 0.80885
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Корица молотая",
+      "final_balance": 0.346621325
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Корица стручковая",
+      "final_balance": 0.281844444
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Кофе зерно",
+      "final_balance": 11.4145
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Крахмал кукурузный",
+      "final_balance": 0.0016
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Лаванда",
+      "final_balance": 0.0214375
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Лайм",
+      "final_balance": 0.97927586
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Лед барный",
+      "final_balance": -0.6
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Лемонграсс",
+      "final_balance": -0.000388889
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Лимоны",
+      "final_balance": 24.165989778
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Малина зам.",
+      "final_balance": 18.651521738
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Мандарин",
+      "final_balance": 4.714545458
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Мед",
+      "final_balance": 2.491
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Минеральная вода газ розлив",
+      "final_balance": 14.92
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Можжевельник",
+      "final_balance": 0.072
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Молоко",
+      "final_balance": 18.28
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Молоко банановое",
+      "final_balance": 17.0
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Молоко безлактозное",
+      "final_balance": 23.79
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Молоко из лесного ореха (фундук)",
+      "final_balance": 5.7
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Молоко кокосовое",
+      "final_balance": 19.0
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Молоко миндальное",
+      "final_balance": 13.64
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Молоко сгущеное",
+      "final_balance": 0.81
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Молоко фисташковое",
+      "final_balance": 0.65
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Мускатный орех",
+      "final_balance": 0.003292645
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Мята",
+      "final_balance": 0.416
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Облепиха зам.",
+      "final_balance": 6.414852459
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Перец черный горошком",
+      "final_balance": -0.000575
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Пиво «Корона Экстра",
+      "final_balance": 15.0
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Пиво нефильтрованное МИЛК ОФ АМНЕЗИЯ - В.Тропик",
+      "final_balance": 7.0
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Пиво светлое фильтрованное \"Бирра Моретти\"",
+      "final_balance": 8.0
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Пиво со вкусом вишни, светлый фильтрованный  РУЖ ДЕ ФЛЕР",
+      "final_balance": 8.0
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Пудра сахарная",
+      "final_balance": 0.0016
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Пюре Питахайя",
+      "final_balance": 1.0
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Пюре арбуз",
+      "final_balance": 0.6
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Пюре маракуйя",
+      "final_balance": 0.156
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Пюре маракуйя с семечками",
+      "final_balance": 5.572
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Розмарин",
+      "final_balance": 0.409117645
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Сахар",
+      "final_balance": 29.881947656
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Сидр полусухой Яблочный сад",
+      "final_balance": 36.2
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Сливки 10%",
+      "final_balance": -1.404
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Сливки 33%",
+      "final_balance": 0.086
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Сок розлив в ассортименте",
+      "final_balance": 47.25
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Соль",
+      "final_balance": 0.035038663
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Тимьян (чабрец)",
+      "final_balance": 0.3775625
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Тмин",
+      "final_balance": 0.4
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Тоник розлив",
+      "final_balance": 7.2
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Фенхель",
+      "final_balance": 0.037
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Фундук",
+      "final_balance": 0.129
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Халва",
+      "final_balance": 1.371168536
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Цикорий",
+      "final_balance": 0.024
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Чай Матча",
+      "final_balance": 0.40375
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Чай Сенча",
+      "final_balance": 0.426
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Чай синий анчан",
+      "final_balance": 0.29353125
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Чай черный Ассам",
+      "final_balance": 0.597
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Чайный напиток Нахальный фрукт",
+      "final_balance": 1.088
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Черная смородина зам.",
+      "final_balance": 14.93
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Шоколад молочный/темный",
+      "final_balance": 0.3775
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "Яблоки",
+      "final_balance": 1.160333332
+    },
+    {
+      "store": "Бар Пиццерия",
+      "product": "т_сироп в ассортименте",
+      "final_balance": 16.22435294
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "-Без всего",
+      "final_balance": -73.0
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Арахисовая паста",
+      "final_balance": 0.34
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Ароматизаор",
+      "final_balance": 0.01
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Базилик",
+      "final_balance": 0.90325
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Баклажан",
+      "final_balance": 3.466612244
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Белок паст.",
+      "final_balance": 7.79279373
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Ванилин",
+      "final_balance": 0.634592728
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Ветчина Любительская",
+      "final_balance": 12.47
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Вино белое сухое (КУХНЯ)",
+      "final_balance": 1.0
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Внутренняя часть бедра (Мускул глазной)",
+      "final_balance": 25.098042196
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Вода из под крана",
+      "final_balance": -18.388208991
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Вонголе (ракушки) БЕЗ ТТК",
+      "final_balance": 1.0
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Вырезка говяжья",
+      "final_balance": -0.061
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Геркулес хлопья",
+      "final_balance": 0.5
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Глазурь асс.",
+      "final_balance": 0.2
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Горошек Зеленый",
+      "final_balance": 0.245
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Горчица зернистая/дижонская",
+      "final_balance": 5.20599071
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Гречневая крупа",
+      "final_balance": 11.318598619
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Грибы Шампиньоны",
+      "final_balance": 6.041329412
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Грибы сушеные",
+      "final_balance": 1.491875435
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Грудка куриная б/к б/ш",
+      "final_balance": 62.689955498
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Груша",
+      "final_balance": -0.301666668
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Дрожжи хлебопекарные сухие",
+      "final_balance": 2.013541541
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Желатин",
+      "final_balance": 0.8
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Желток паст.",
+      "final_balance": 15.144375017
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Зеленый лук перо",
+      "final_balance": 0.18
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Зелень (петрушка, укроп)",
+      "final_balance": 0.120903838
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Зелень кинза",
+      "final_balance": 0.235347825
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Зубочистки",
+      "final_balance": -3.0
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Икра Горбуши",
+      "final_balance": 0.014
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Имбирь молотый",
+      "final_balance": 0.03
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Йогурт греческий",
+      "final_balance": 9.040909095
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Какао порошок",
+      "final_balance": 1.660307788
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Кальмар б/к",
+      "final_balance": 1.5
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Каперсы маринованные",
+      "final_balance": 1.733597284
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Картофель",
+      "final_balance": 7.401470588
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Кетчуп кг",
+      "final_balance": 6.36945
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Кешью жареный",
+      "final_balance": 0.483255814
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Клубника сублимированная",
+      "final_balance": 0.0748
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Клюква сушенная",
+      "final_balance": 0.591069768
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Колбаса Салями",
+      "final_balance": 6.15
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Колбаса Фуэт",
+      "final_balance": 0.762826086
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Колбаски охотничьи",
+      "final_balance": 1.535
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Корень имбиря",
+      "final_balance": 0.337125281
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Корица молотая",
+      "final_balance": -0.010386552
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Кофе зерно",
+      "final_balance": -0.009164593
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Краситель пищевой",
+      "final_balance": 0.03
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Крахмал кукурузный",
+      "final_balance": 17.750131276
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Креветки замороженые",
+      "final_balance": 16.170096818
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Кукуруза консервированая",
+      "final_balance": 3.896
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Кумин приправа",
+      "final_balance": 0.012
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Лимоны",
+      "final_balance": -2.679140787
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Лопатка/Окорок в/к",
+      "final_balance": 4.64
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Лук красный",
+      "final_balance": 0.503180606
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Лук репчатый",
+      "final_balance": 3.953879719
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Макароны",
+      "final_balance": 3.353
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Малина зам.",
+      "final_balance": 0.216714281
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Малина сублимированная",
+      "final_balance": 0.1088
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Масло оливковое (ExtraVirgen)",
+      "final_balance": 23.870890744
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Масло оливковое второй сорт (pomace olive)",
+      "final_balance": 21.917860877
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Масло подсолнечное",
+      "final_balance": 15.394060286
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Масло сливочное",
+      "final_balance": 26.424294615
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Масло трюфельное",
+      "final_balance": 1.1467
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Мед",
+      "final_balance": 7.1564
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Мидии в ракушках",
+      "final_balance": 2.93
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Миндаль",
+      "final_balance": 0.839255814
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Миндаль лепестки",
+      "final_balance": 0.08
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Миндаль сушенный",
+      "final_balance": 0.15
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Молоко",
+      "final_balance": -21.705979662
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Морковь",
+      "final_balance": 5.612157472
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Мортаделла",
+      "final_balance": -0.9254
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Мука (MammaMif Semolina) крупка",
+      "final_balance": 52.603142853
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Мука (RizzaMix)/смесь для римской пиццы",
+      "final_balance": 213.865887372
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Мука пшеничная",
+      "final_balance": 40.33327384
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Мускатный орех",
+      "final_balance": 0.170163632
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Мясо мидий",
+      "final_balance": 0.6
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Овес резаный",
+      "final_balance": 0.5
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Огурец маринованный",
+      "final_balance": -0.094
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Огурцы",
+      "final_balance": 2.999
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Оливки/маслины консервированные",
+      "final_balance": 1.132173909
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Орех Грецкий",
+      "final_balance": 0.692302326
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Орех пекан",
+      "final_balance": 0.09
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Орех фисташка",
+      "final_balance": -0.145
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Осьминог с/м",
+      "final_balance": 0.265
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Паприка",
+      "final_balance": 0.406
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Перец болгарский красный сладкий",
+      "final_balance": 5.651901109
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Перец черный горошком",
+      "final_balance": 0.925768149
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Перец черный молотый",
+      "final_balance": -0.01
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Персики консерв.",
+      "final_balance": 0.23
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Помидоры Черри",
+      "final_balance": 1.493
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Помидоры свеж Грунтовые",
+      "final_balance": 5.77
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Помито (томаты в с/с)/томатная паста",
+      "final_balance": 63.59738
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Прованские травы",
+      "final_balance": 0.466629
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Пудра сахарная",
+      "final_balance": 7.247846088
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Пыль из белых грибов",
+      "final_balance": 0.647387538
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Пюре манго",
+      "final_balance": 1.43
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Рис",
+      "final_balance": 20.19845454
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Розмарин",
+      "final_balance": 0.041449042
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Руккола",
+      "final_balance": 0.69846667
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Салат Айсберг/Романо",
+      "final_balance": 6.891666669
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Салат чука",
+      "final_balance": 14.95640324
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Сахар",
+      "final_balance": 60.872400685
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Сахар тросниковый",
+      "final_balance": 9.94229468
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Семена льна",
+      "final_balance": 0.406295712
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Семена подсолнечника",
+      "final_balance": 0.816662944
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Семена тыквенные",
+      "final_balance": 0.512087944
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Сливки 10%",
+      "final_balance": 16.684468083
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Сливки 20%",
+      "final_balance": 9.15
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Сливки 33%",
+      "final_balance": 7.796938982
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Сметана",
+      "final_balance": 1.506
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Сода",
+      "final_balance": 0.071220077
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Соль",
+      "final_balance": 27.065818579
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Соус Ворчестер",
+      "final_balance": 1.168698527
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Соус Кимчи",
+      "final_balance": 2.482
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Соус Свит Чили",
+      "final_balance": 1.7038
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Соус Соевый",
+      "final_balance": 6.367197124
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Соус Устричный",
+      "final_balance": 4.348070197
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Соус Шрирача",
+      "final_balance": 0.539097185
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Соус ореховый",
+      "final_balance": 2.473
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Соус фиш рыбный",
+      "final_balance": 1.081770496
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Спинки куриные заморож.",
+      "final_balance": 6.005401421
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Сыр Дор Блю",
+      "final_balance": 1.213
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Сыр Камамбер",
+      "final_balance": 1.676
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Сыр Крем чиз (творожный)",
+      "final_balance": 11.341824465
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Сыр Маскарпоне",
+      "final_balance": 1.149761905
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Сыр Моцарелла твердый",
+      "final_balance": 61.23358605
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Сыр Пармезан/стародуб хард",
+      "final_balance": 1.92343939
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Сыр Страчателла",
+      "final_balance": 2.512364335
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Сыр Фета/сиртаки",
+      "final_balance": 0.528
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Сыр для бургера/чеддер",
+      "final_balance": 1.73535295
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Творог",
+      "final_balance": 7.808127918
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Тимьян (чабрец)",
+      "final_balance": 0.073927222
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Томаты вяленые",
+      "final_balance": 1.470910831
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Тунец консервированный",
+      "final_balance": 0.26
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Тунец красный св/м",
+      "final_balance": 7.519383103
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Тыква",
+      "final_balance": 0.043
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Уксус Яблочный",
+      "final_balance": 0.413856707
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Уксус бальзамический темный",
+      "final_balance": 0.28556
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Уксус винный",
+      "final_balance": 1.175
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Уксус рисовый",
+      "final_balance": 3.4196883
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Форель",
+      "final_balance": 3.949278679
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Фундук",
+      "final_balance": 1.16876278
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Халапеньо консервированый",
+      "final_balance": 1.767
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Хлеб",
+      "final_balance": 0.624504
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Хлопья овсяные",
+      "final_balance": 2.267209302
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Чеснок",
+      "final_balance": -0.114110928
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Чечевица",
+      "final_balance": 0.073
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Чоризо",
+      "final_balance": 1.31
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Шоколад белый",
+      "final_balance": 0.5
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Шоколад молочный/темный",
+      "final_balance": 4.780000018
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Шпинат",
+      "final_balance": 3.625
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Шпинат зам.",
+      "final_balance": 3.205
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Шпинат свежий",
+      "final_balance": 0.47466667
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Экстракт ванили",
+      "final_balance": 0.671799169
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Ягоды (голубика, клубника,малина)",
+      "final_balance": 0.5
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Яйцо",
+      "final_balance": 238.258435567
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "Яйцо перепелиное",
+      "final_balance": 20.0
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "т_Супер Мука для пиццы",
+      "final_balance": 6.0
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "т_коробка для пиццы",
+      "final_balance": -3.0
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "т_крышка д/контейнера однораз",
+      "final_balance": -1.0
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "т_лимонная кислота",
+      "final_balance": 0.171629488
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "т_пакет с клеевым клапаном",
+      "final_balance": -3.0
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "т_пектин",
+      "final_balance": 0.049428573
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "т_салатник/супница 500/750/800мл",
+      "final_balance": -1.0
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "т_салфетки влажные",
+      "final_balance": -6.0
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "т_салфетки черные белые",
+      "final_balance": -18.0
+    },
+    {
+      "store": "Кухня Пиццерия",
+      "product": "т_сироп в ассортименте",
+      "final_balance": 0.077330232
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Бак д/мусора",
+      "final_balance": 3.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Банка с крышкой пласт.",
+      "final_balance": 5.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Барная полоска (коврик)",
+      "final_balance": 6.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Блендер",
+      "final_balance": 2.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Весы настольные",
+      "final_balance": 4.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Вилка столовая",
+      "final_balance": 32.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Витрина холодильная барная",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Воронка",
+      "final_balance": 3.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Газовая горелка",
+      "final_balance": 3.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Гастроемкость",
+      "final_balance": 120.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Денежный ящик",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Джиггер",
+      "final_balance": 5.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Диагностика оборудования",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Диспенсер",
+      "final_balance": 12.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Дисплей покупателя",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Доска дерево",
+      "final_balance": 25.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Доска разделочная Бар",
+      "final_balance": 7.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Дуршлаг",
+      "final_balance": 4.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Емкость для специй",
+      "final_balance": 2.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Емкость мерная",
+      "final_balance": 3.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Ершик д/посуды",
+      "final_balance": 2.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Запчасть",
+      "final_balance": 4.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Звонок настольный",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "ИБП",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Игла латте арт",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "ККТ",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Капучинатор (вспениватель)",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Кастрюля",
+      "final_balance": 13.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Кисть силиконовая",
+      "final_balance": 2.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Коврик для темпера силикон 15 см",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Коврик силиконовый",
+      "final_balance": 16.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Ковш 3 л",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Кольцо пластиковое",
+      "final_balance": 6.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Контейнер для теста",
+      "final_balance": 28.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Контейнер мусорный",
+      "final_balance": 3.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Контейнер пласт",
+      "final_balance": 195.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Контейнер пласт 3.3 л",
+      "final_balance": 9.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Контейнер пласт 5 л",
+      "final_balance": 6.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Контейнер пласт 5.5 л",
+      "final_balance": 4.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Контейнер пласт. 9 л.",
+      "final_balance": 13.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Контроллер с ПДУ",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Кофемолка электрич",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Крышка д/кастрюли",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Крышка для гастроемкости",
+      "final_balance": 56.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Куртка повара",
+      "final_balance": 6.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Кухонная машина (комбайн)",
+      "final_balance": 2.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Лампа от насекомых",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Лапшерезка",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Ложка барная",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Ложка столовая",
+      "final_balance": 26.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Ложка чайная",
+      "final_balance": 8.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Лопата для пиццы",
+      "final_balance": 2.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Лопата для уборки",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Лопатка кондитерская",
+      "final_balance": 14.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Магнитный держатель для ножей",
+      "final_balance": 2.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Мадлер",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Мельница для специй",
+      "final_balance": 6.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Мерный стакан",
+      "final_balance": 3.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Миксер планетарный",
+      "final_balance": 2.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Миксер погружной",
+      "final_balance": 4.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Миска 2.1 л.",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Миска 3 л.",
+      "final_balance": 5.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Миска 3.6 л.",
+      "final_balance": 3.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Миска 4.5 л.",
+      "final_balance": 3.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Миска для собак",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Молочник",
+      "final_balance": 2.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Морозильный ларь",
+      "final_balance": 2.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Мусат (точилка для ножей)",
+      "final_balance": 2.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Напальчник",
+      "final_balance": 5.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Насадка д/мешка",
+      "final_balance": 9.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Нож",
+      "final_balance": 11.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Нож барный",
+      "final_balance": 2.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Нож консервный",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Нож столовый",
+      "final_balance": 30.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Ножницы кухонные",
+      "final_balance": 5.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Нок-бокс",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Обувь",
+      "final_balance": 7.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Овощечистка",
+      "final_balance": 6.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Опрыскиватель (распылитель)",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Органайзер барный",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Открывалка",
+      "final_balance": 6.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Папка д/документов",
+      "final_balance": 2.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Персонник",
+      "final_balance": 15.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Пинцет для бара",
+      "final_balance": 5.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Питчер 150 мл",
+      "final_balance": 2.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Питчер 370 мл",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Питчер 600 мл",
+      "final_balance": 2.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Планка для чеков",
+      "final_balance": 2.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Плита",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Поднос круглый пластик прорезиненный д-406",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Поднос черный прорезиненный д-28см",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Подставка для досок",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Подушки на стулья",
+      "final_balance": 5.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Полка",
+      "final_balance": 2.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Половник",
+      "final_balance": 8.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Противогололедный материал",
+      "final_balance": 5.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Прочее",
+      "final_balance": 5.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Рисоварка",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Рукавицы (прихватки)",
+      "final_balance": 3.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "СВЧ",
+      "final_balance": 2.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Сабо (униформа)",
+      "final_balance": 18.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Сверло",
+      "final_balance": 2.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Система фильтрации воды",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Сито",
+      "final_balance": 8.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Сито бар",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Скалка",
+      "final_balance": 3.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Сканер штрих-кода",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Сковорода",
+      "final_balance": 26.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Скребок",
+      "final_balance": 6.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Слайсер",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Совок",
+      "final_balance": 2.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Совок для сыпучих",
+      "final_balance": 4.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Соковыжималка",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Сотейник",
+      "final_balance": 5.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Соусник стекло",
+      "final_balance": 7.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Стакан с двойной стенкой",
+      "final_balance": 4.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Стакан стекло 350мл",
+      "final_balance": 20.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Стекло 410мл стакан",
+      "final_balance": 16.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Стеклянная банка",
+      "final_balance": 2.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Степлер",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Стол",
+      "final_balance": 2.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Стол холодильный",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Стрейнер для специй мал. мелка сетка",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Стул",
+      "final_balance": 2.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Сушка для зелени",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Табурет - стремянка",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Таз",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Таймер",
+      "final_balance": 3.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Тарелка",
+      "final_balance": 6.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Тарелка глубокая шампань 923мл",
+      "final_balance": 11.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Тарелка десертная",
+      "final_balance": 14.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Тарелка плоская Шампань 28см",
+      "final_balance": 11.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Тарелка суповая",
+      "final_balance": 13.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Телефон",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Темпер для кофе",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Терминал",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Термо-принтер",
+      "final_balance": 3.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Термометр",
+      "final_balance": 2.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Термометр для печи",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Термометр игла",
+      "final_balance": 2.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Тестомесильная машина",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Унитаз",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Урна-пепельница",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Фартук",
+      "final_balance": 13.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Форма для запекания",
+      "final_balance": 34.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Форма силиконовая Полусферы 4",
+      "final_balance": 4.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Форма силиконовая Полусферы 4.5",
+      "final_balance": 13.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Форма силиконовая Полусферы 5.5",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Чайник стекло",
+      "final_balance": 5.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Чаша 670мл Шампань",
+      "final_balance": 11.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Швабра",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Шкаф",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Шпатель",
+      "final_balance": 3.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Шпиль для чеков",
+      "final_balance": 4.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Шумовка",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Щетка",
+      "final_balance": 5.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Щипцы кухонные",
+      "final_balance": 7.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "Ящик пласт с крышкой",
+      "final_balance": 12.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "сифон для взбивания сливок",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "т_бутылка для соуса",
+      "final_balance": 104.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "т_вакууматор",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "т_венчик",
+      "final_balance": 8.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "т_горшок технологический",
+      "final_balance": 11.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "т_держатель для ножей",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "т_доска магнитная",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "т_зонт накладной на пицца печь",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "т_инвентарь",
+      "final_balance": 12.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "т_корзина",
+      "final_balance": 3.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "т_лопатка деревянная",
+      "final_balance": 18.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "т_отпариватель",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "т_пакет магазин",
+      "final_balance": 3.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "т_печь конвекционная",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "т_стакан 410мл стекло олд фешн",
+      "final_balance": 11.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "т_стакан хайбол Банка 470мл",
+      "final_balance": 8.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "т_стройматериалы",
+      "final_balance": 112.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "т_су-вид оборудование",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "т_терка",
+      "final_balance": 8.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "т_термосумки",
+      "final_balance": 3.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "т_терстораскатка",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "т_тряпка для пола/МОП",
+      "final_balance": 2.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "т_щетка для пола + совок",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "у_доставка",
+      "final_balance": 1.0
+    },
+    {
+      "store": "ТМЦ Пиццерия",
+      "product": "форма кондитерская",
+      "final_balance": 2.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_пакет вакуумный",
+      "final_balance": 150.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Бак д/мусора",
+      "final_balance": 1.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Баллон с газом",
+      "final_balance": 4.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Баллончик газ для сифона",
+      "final_balance": 2.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Батарейки",
+      "final_balance": 1.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Бланк накладная",
+      "final_balance": 51.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Ведро",
+      "final_balance": 2.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Веник",
+      "final_balance": 2.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Весы гарантия 3 месяца (от 02\\8\\24)",
+      "final_balance": 1.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Дегустация",
+      "final_balance": 2.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Держатель для 2-х стаканов (капхолдер)",
+      "final_balance": 50.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Держатель мопов",
+      "final_balance": 1.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Для каш, супов",
+      "final_balance": -16.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Для пиццы",
+      "final_balance": -42.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Доставка 250 рублей",
+      "final_balance": -42.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Доставка товаров",
+      "final_balance": 1.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Ерш подвесной",
+      "final_balance": 1.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Зубочистки",
+      "final_balance": 751.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Изолента",
+      "final_balance": 1.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Контейнер однораз",
+      "final_balance": 267.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Коробка для пиццы",
+      "final_balance": 600.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Крышка к супнице",
+      "final_balance": 847.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Крышка купол",
+      "final_balance": 411.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Лампа от насекомых",
+      "final_balance": 1.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Лампочка",
+      "final_balance": 50.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Манжета на стакан",
+      "final_balance": 20.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Опрыскиватель (распылитель)",
+      "final_balance": 5.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Пакет фасовочный",
+      "final_balance": 237.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Перчатки резиновые",
+      "final_balance": 2.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Печать (штамп)",
+      "final_balance": 4.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Пики бамбук",
+      "final_balance": 2.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Полиграфия",
+      "final_balance": 1.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Полотно вафельное",
+      "final_balance": 1.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Приборы",
+      "final_balance": -58.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Размешиватель деревянный",
+      "final_balance": 917.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Ручка",
+      "final_balance": 12.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "С собой",
+      "final_balance": -360.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Салатник 500мл",
+      "final_balance": -14.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Сахар порционный",
+      "final_balance": 317.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Стакан пластик",
+      "final_balance": 97.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Стекло 410мл стакан",
+      "final_balance": 6.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Степлер",
+      "final_balance": 4.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Фартук однораз",
+      "final_balance": 40.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Форма персонала",
+      "final_balance": 10.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Форма силиконовая Полусферы 5",
+      "final_balance": 6.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Ценник 50/36",
+      "final_balance": 600.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Чаша бумажная 750мл",
+      "final_balance": 90.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Шапочки однораз",
+      "final_balance": 200.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Швабра",
+      "final_balance": 1.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Щетка",
+      "final_balance": 2.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "Этикет лента",
+      "final_balance": 6.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_аптечка/аптечные препараты",
+      "final_balance": 21.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_банка-соусник с крышкой 50мл",
+      "final_balance": 138.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_бумага д/выпекания",
+      "final_balance": 4.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_бумага офисная",
+      "final_balance": 500.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_бумага туалетная",
+      "final_balance": 16.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_бумажные полотенца",
+      "final_balance": 12.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_бутылка 0,3/0,2 прозрачная с крышкой",
+      "final_balance": 440.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_бутылка 2л ПЭТ с крышкой",
+      "final_balance": 480.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_вилка, нож, ложка однораз.",
+      "final_balance": 529.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_гофрокороб",
+      "final_balance": 580.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_губка для посуды",
+      "final_balance": 35.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_губка металлическая",
+      "final_balance": 25.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_канцтовары",
+      "final_balance": 18.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_контейнер 2000мл",
+      "final_balance": 1150.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_коробка д/ бургеров крафт",
+      "final_balance": 291.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_коробка для пиццы",
+      "final_balance": 185.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_коробка картон",
+      "final_balance": 230.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_крышка д/контейнера однораз",
+      "final_balance": 182.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_крышка д/стакана 250 мл 80мм",
+      "final_balance": 413.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_крышка д/стакана 350/500/600 мл 90мм",
+      "final_balance": 348.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_лопатка пластик 25/35см",
+      "final_balance": 3.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_маркер",
+      "final_balance": 97.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_мешки д/мусора",
+      "final_balance": 25.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_мешок кондитерский",
+      "final_balance": 850.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_пакет для гриля",
+      "final_balance": 946.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_пакет для пиццы",
+      "final_balance": 1500.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_пакет крафт с v-дном",
+      "final_balance": 327.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_пакет магазин",
+      "final_balance": 10.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_пакет майка белая",
+      "final_balance": 100.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_пакет с клеевым клапаном",
+      "final_balance": -161.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_пакет с ручками крафт",
+      "final_balance": 245.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_перчатки нитриловые",
+      "final_balance": 6.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_пленка пищевая",
+      "final_balance": 3.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_салатник/супница 500/750/800мл",
+      "final_balance": 374.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_салфетки влажные",
+      "final_balance": 1883.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_салфетки д/уборки",
+      "final_balance": 40.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_салфетки черные белые",
+      "final_balance": 8546.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_скобы д/степлера",
+      "final_balance": 4.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_скотч в ассортименте",
+      "final_balance": 7.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_стакан 250 мл крафт",
+      "final_balance": 273.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_стакан 350 мл крафт",
+      "final_balance": 366.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_стакан бабл кап 0,375мл",
+      "final_balance": 200.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_трубочки",
+      "final_balance": 847.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_тряпка для пола/МОП",
+      "final_balance": 5.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_фильтр для листового чая",
+      "final_balance": 150.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_фильтры бумажные",
+      "final_balance": 100.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_фольга",
+      "final_balance": 12.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_химия/моющие в ассортименте",
+      "final_balance": 13.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_хоз.товар",
+      "final_balance": 8.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_чековая лента",
+      "final_balance": 16.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_щетка для пола + совок",
+      "final_balance": 2.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "т_этикетка",
+      "final_balance": 4.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "у_дезинсекция",
+      "final_balance": 1.0
+    },
+    {
+      "store": "Хоз. товары Пиццерия",
+      "product": "у_доставка",
+      "final_balance": 2.0
+    }
+  ]
+}

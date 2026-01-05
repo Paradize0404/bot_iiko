@@ -16,6 +16,7 @@ from db.settings_db import init_settings_table
 from db.departments_db import init_departments_table
 from services.position_monitor import run_periodic_monitoring
 from services.negative_transfer_scheduler import run_periodic_negative_transfer
+from scripts.low_stock_scheduler import run_periodic_low_stock
 
 ## ────────────── Функция запуска бота ──────────────
 async def _startup():
@@ -37,6 +38,10 @@ async def _startup():
     # Ежедневное авто-перемещение по отрицательным остаткам: сразу при старте и далее каждый день в 07:00
     asyncio.create_task(run_periodic_negative_transfer(run_immediately=True))
     logging.info("🔄 Запущен планировщик авто-перемещений (первый запуск сразу, далее ежедневно 07:00)")
+
+    # Стоп-лист по min-остаткам: первый запуск сразу, далее каждые 2 часа
+    asyncio.create_task(run_periodic_low_stock())
+    logging.info("🔄 Запущен мониторинг остаточных стоп-листов (первый запуск сразу, далее каждые 2 часа)")
     
     # ensure Bot instance exists and use it for polling
     if config.bot is None:

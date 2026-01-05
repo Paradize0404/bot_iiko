@@ -11,14 +11,24 @@ _POOL: asyncpg.Pool | None = None
 async def init_pool() -> None:
     """Создаём пул при старте бота (один раз)."""
     global _POOL
-    
+
     if _POOL is None:
         dsn = os.getenv("DATABASE_URL")
         if dsn and "+asyncpg" in dsn:
             dsn = dsn.replace("+asyncpg", "")
 
         if not dsn:
-            raise RuntimeError("DATABASE_URL не указан")
+            # Фоллбек на стандартные PG_* переменные
+            pg_user = os.getenv("PGUSER") or os.getenv("POSTGRES_USER")
+            pg_password = os.getenv("PGPASSWORD") or os.getenv("POSTGRES_PASSWORD")
+            pg_host = os.getenv("PGHOST") or os.getenv("POSTGRES_HOST") or "localhost"
+            pg_port = os.getenv("PGPORT") or os.getenv("POSTGRES_PORT") or "5432"
+            pg_db = os.getenv("PGDATABASE") or os.getenv("POSTGRES_DB")
+            if pg_user and pg_password and pg_db:
+                dsn = f"postgresql://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db}"
+
+        if not dsn:
+            raise RuntimeError("DATABASE_URL не указан и не удалось собрать DSN из PG* переменных")
 
         _POOL = await asyncpg.create_pool(dsn, min_size=1, max_size=10)
 

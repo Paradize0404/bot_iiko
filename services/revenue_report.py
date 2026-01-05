@@ -632,6 +632,12 @@ def format_cost_by_cooking_place_report(result: Dict[str, Any]) -> str:
         except Exception:
             return date_str or "?"
 
+    def _escape_md(text: str) -> str:
+        """Экранирует спецсимволы Telegram Markdown в произвольных строках."""
+        if text is None:
+            return ""
+        return str(text).replace("_", "\\_")
+
     bar = result.get('bar', {})
     kitchen = result.get('kitchen', {})
     yandex = result.get('yandex', {})
@@ -728,7 +734,7 @@ def format_cost_by_cooking_place_report(result: Dict[str, Any]) -> str:
                 for item in entries:
                     lines.append(
                         "• {name}: себестоимость {percent} ({share:.1f}% доля)".format(
-                            name=item['name'],
+                            name=_escape_md(item['name']),
                             percent=_fmt_percent(item.get('cost_percent', 0.0)),
                             share=item.get('cost_share_percent', 0.0),
                         )

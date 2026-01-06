@@ -38,6 +38,7 @@ TARGET_STORES = {"Бар Пиццерия", "Кухня Пиццерия"}
 SCHEDULE_SECONDS = 2 * 60 * 60
 
 BOT_TOKEN = os.getenv("LOW_STOCK_BOT_TOKEN") or os.getenv("BOT_TOKEN")
+DECIMAL_Q = Decimal("0.001")
 
 
 # --------------------------- БАЗА ---------------------------
@@ -135,7 +136,7 @@ def build_min_levels(products: Sequence[dict[str, Any]], store_map: dict[str, st
             if min_level in (None, ""):
                 continue
             try:
-                min_dec = Decimal(str(min_level))
+                min_dec = Decimal(str(min_level)).quantize(DECIMAL_Q, rounding=ROUND_HALF_UP)
             except Exception:
                 continue
             result[(store_name, name)] = min_dec
@@ -146,8 +147,6 @@ def build_min_levels(products: Sequence[dict[str, Any]], store_map: dict[str, st
 
 AMOUNT_FIELDS = ("FinalBalance.Amount", "FinalBalance")
 UNIT_FIELDS = ("Product.MeasureUnit", "Product.MainUnit", "Product.MeasureName", "Product.Unit")
-
-ROUND_STEP = Decimal("0.001")
 
 
 @dataclass
@@ -178,9 +177,9 @@ async def compute_below_min() -> list[LowItem]:
 
         amount_val = _extract_first(row, AMOUNT_FIELDS, 0)
         try:
-            qty = Decimal(str(amount_val))
+            qty = Decimal(str(amount_val)).quantize(DECIMAL_Q, rounding=ROUND_HALF_UP)
         except Exception:
-            qty = Decimal(0)
+            qty = Decimal(0).quantize(DECIMAL_Q)
         if qty >= min_level:
             continue
 
@@ -188,14 +187,6 @@ async def compute_below_min() -> list[LowItem]:
         result.append(LowItem(store_name, product_name, qty, min_level, str(unit)))
 
     return result
-
-
-def _format_decimal(value: Decimal) -> str:
-    try:
-        rounded = value.quantize(ROUND_STEP, rounding=ROUND_HALF_UP)
-    except Exception:
-        return str(value)
-    return f"{rounded:.3f}"
 
 
 # --------------------------- DIFF ---------------------------
@@ -253,11 +244,15 @@ def format_message(items: list[LowItem]) -> str:
     for store in sorted(grouped.keys()):
         lines.append(f"\n{store}")
         for it in sorted(grouped[store], key=lambda x: x.product):
-            qty = _format_decimal(it.qty)
-            min_lvl = _format_decimal(it.min_level)
-            lines.append(f"• {it.product}: {qty} {it.unit} < min {min_lvl}")
+            qty_txt = format_decimal(it.qty)
+            min_txt = format_decimal(it.min_level)
+            lines.append(f"• {it.product}: {qty_txt} {it.unit} < min {min_txt}")
     lines.append("\n#стоплист")
     return "\n".join(lines)
+
+
+def format_decimal(value: Decimal) -> str:
+    return format(value.quantize(DECIMAL_Q, rounding=ROUND_HALF_UP), ".3f")
 
 
 async def send_or_update_message(text: str) -> None:

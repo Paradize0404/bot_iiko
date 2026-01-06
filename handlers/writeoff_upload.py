@@ -35,7 +35,7 @@ KITCHEN_SPECIAL_ARTICLES = {
 
 
 ## ────────────── Состояния FSM для отчёта по списаниям ──────────────
-class WriteoffStates(StatesGroup):
+class WriteoffReportStates(StatesGroup):
     selecting_start = State()
     selecting_end = State()
 
@@ -225,7 +225,7 @@ async def send_grouped_writeoff_report(message: Message, from_dt: datetime, to_d
 async def writeoff_select_date_start(message: Message, state: FSMContext):
     today = datetime.today()
     calendar = build_calendar(today.year, today.month, calendar_id="writeoff", mode="range")
-    await state.set_state(WriteoffStates.selecting_start)
+    await state.set_state(WriteoffReportStates.selecting_start)
     await message.answer("Выберите дату начала периода:", reply_markup=calendar)
 
 
@@ -256,7 +256,7 @@ async def handle_writeoff_calendar(callback: CallbackQuery, state: FSMContext):
 
         if "from_date" not in state_data:
             await state.update_data(from_date=selected_date.isoformat())
-            await state.set_state(WriteoffStates.selecting_end)
+            await state.set_state(WriteoffReportStates.selecting_end)
             today = datetime.today()
             calendar = build_calendar(today.year, today.month, calendar_id="writeoff", mode="range")
             await callback.message.edit_text("Теперь выберите дату окончания периода:", reply_markup=calendar)

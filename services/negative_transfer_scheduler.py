@@ -7,7 +7,7 @@ from datetime import datetime, time, timedelta
 from scripts.create_negative_transfer import run_negative_transfer
 
 logger = logging.getLogger(__name__)
-_RUN_HOUR = 7
+_RUN_HOUR = 23
 _SYNC_LOCK = asyncio.Lock()
 
 

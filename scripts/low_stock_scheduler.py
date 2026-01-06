@@ -13,7 +13,7 @@ import os
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Iterable, Sequence
 
 import httpx
@@ -147,6 +147,8 @@ def build_min_levels(products: Sequence[dict[str, Any]], store_map: dict[str, st
 AMOUNT_FIELDS = ("FinalBalance.Amount", "FinalBalance")
 UNIT_FIELDS = ("Product.MeasureUnit", "Product.MainUnit", "Product.MeasureName", "Product.Unit")
 
+ROUND_STEP = Decimal("0.001")
+
 
 @dataclass
 class LowItem:
@@ -186,6 +188,14 @@ async def compute_below_min() -> list[LowItem]:
         result.append(LowItem(store_name, product_name, qty, min_level, str(unit)))
 
     return result
+
+
+def _format_decimal(value: Decimal) -> str:
+    try:
+        rounded = value.quantize(ROUND_STEP, rounding=ROUND_HALF_UP)
+    except Exception:
+        return str(value)
+    return f"{rounded:.3f}"
 
 
 # --------------------------- DIFF ---------------------------
@@ -243,7 +253,9 @@ def format_message(items: list[LowItem]) -> str:
     for store in sorted(grouped.keys()):
         lines.append(f"\n{store}")
         for it in sorted(grouped[store], key=lambda x: x.product):
-            lines.append(f"• {it.product}: {it.qty} {it.unit} < min {it.min_level}")
+            qty = _format_decimal(it.qty)
+            min_lvl = _format_decimal(it.min_level)
+            lines.append(f"• {it.product}: {qty} {it.unit} < min {min_lvl}")
     lines.append("\n#стоплист")
     return "\n".join(lines)
 

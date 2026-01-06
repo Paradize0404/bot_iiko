@@ -257,16 +257,16 @@ async def send_or_update_message(text: str) -> None:
     pool = get_pool()
     async with pool.acquire() as conn:
         for chat_id in chat_ids:
+            # Сносим старое сообщение, чтобы новое приехало в конец диалога с пушем
             row = await conn.fetchrow("SELECT message_id FROM low_stock_message WHERE chat_id=$1", chat_id)
             if row:
-                r = httpx.post(
-                    f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText",
-                    json={"chat_id": chat_id, "message_id": row[0], "text": text},
-                )
-                data = r.json()
-                if data.get("ok"):
-                    continue
-                logging.warning(f"editMessageText failed for chat {chat_id}: {data}")
+                try:
+                    httpx.post(
+                        f"https://api.telegram.org/bot{BOT_TOKEN}/deleteMessage",
+                        json={"chat_id": chat_id, "message_id": row[0]},
+                    )
+                except Exception as exc:
+                    logging.warning("deleteMessage failed chat=%s err=%s", chat_id, exc)
 
             r = httpx.post(
                 f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
@@ -293,10 +293,8 @@ async def send_or_update_message(text: str) -> None:
 async def run_once() -> bool:
     try:
         items = await compute_below_min()
-        added, removed = await diff_with_state(items)
-        if not added and not removed:
-            logging.info("Нет изменений ниже минимума")
-            return False
+        # обновляем состояние в БД и игнорируем, были ли изменения — всегда шлём актуальный стоп-лист
+        await diff_with_state(items)
         text = format_message(items)
         await send_or_update_message(text)
         logging.info("Обновили стоп-лист по min-остаткам: %d позиций", len(items))

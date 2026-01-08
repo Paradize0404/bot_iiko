@@ -12,7 +12,7 @@ from sqlalchemy import select
 
 from iiko.iiko_auth import get_auth_token, get_base_url
 from services.cash_shift_report import get_cash_shifts_with_details
-from db.position_commission_db import async_session, PositionCommission
+from services.position_commission_source import get_position_settings
 from services.writeoff_documents import get_writeoff_documents, calculate_writeoff_sum_for_employee
 from db.employee_position_history_db import (
     get_position_history_for_period,
@@ -169,23 +169,9 @@ async def fetch_salary_from_iiko(from_date: str, to_date: str) -> dict:
         
         logger.info(f"✅ Загружено {len(roles_dict)} должностей")
         
-        # Загружаем настройки комиссии из БД по должностям
-        logger.info("📥 Загрузка настроек комиссии из БД...")
-        position_settings = {}
-        async with async_session() as session:
-            result = await session.execute(select(PositionCommission))
-            commissions = result.scalars().all()
-            # Сохраняем все настройки: payment_type, fixed_rate, commission_percent, commission_type
-            position_settings = {
-                c.position_name: {
-                    'payment_type': c.payment_type,
-                    'fixed_rate': c.fixed_rate,
-                    'commission_percent': c.commission_percent,
-                    'commission_type': c.commission_type
-                } 
-                for c in commissions
-            }
-        
+        # Загружаем настройки комиссии (Sheets с fallback на БД)
+        logger.info("📥 Загрузка настроек комиссии (Sheets → DB fallback)...")
+        position_settings = await get_position_settings()
         logger.info(f"✅ Загружено {len(position_settings)} настроек по должностям")
         
         # 5. Создаем справочник сотрудников

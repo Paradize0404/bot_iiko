@@ -36,6 +36,8 @@ TARGET_STORES = {"Бар Пиццерия", "Кухня Пиццерия"}
 
 # Период запуска (сек)
 SCHEDULE_SECONDS = 2 * 60 * 60
+WINDOW_START_HOUR = 8
+WINDOW_END_HOUR = 22  # exclusive
 
 BOT_TOKEN = os.getenv("LOW_STOCK_BOT_TOKEN") or os.getenv("BOT_TOKEN")
 DECIMAL_Q = Decimal("0.001")
@@ -316,10 +318,26 @@ async def run_periodic_low_stock(period_seconds: int = SCHEDULE_SECONDS, run_imm
     await init_pool()
     await init_tables()
     if run_immediately:
-        await run_once()
+        now_h = datetime.now().hour
+        if WINDOW_START_HOUR <= now_h < WINDOW_END_HOUR:
+            await run_once()
+        else:
+            logging.info(
+                "Пропуск мгновенного прогона стоп-листа (вне окна %02d:00-%02d:00)",
+                WINDOW_START_HOUR,
+                WINDOW_END_HOUR,
+            )
     while True:
         await asyncio.sleep(period_seconds)
-        await run_once()
+        now_h = datetime.now().hour
+        if WINDOW_START_HOUR <= now_h < WINDOW_END_HOUR:
+            await run_once()
+        else:
+            logging.info(
+                "Пропуск обновления стоп-листа (вне окна %02d:00-%02d:00)",
+                WINDOW_START_HOUR,
+                WINDOW_END_HOUR,
+            )
 
 
 def main() -> None:

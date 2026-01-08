@@ -59,33 +59,28 @@ async def get_employees_list_from_iiko() -> dict:
 
 
 ## ────────────── Получение списка должностей ──────────────
-async def get_positions_from_iiko() -> dict:
-    """Получает список должностей из iiko"""
-    try:
-        token = await get_auth_token()
-        base_url = get_base_url()
-        
-        url = f"{base_url}/resto/api/employees/roles"
-        async with httpx.AsyncClient(verify=False, timeout=30.0) as client:
-            response = await client.get(
-                url,
-                headers={"Cookie": f"key={token}"}
-            )
-        response.raise_for_status()
-        
-        tree = ET.fromstring(response.text)
-        roles = {}
-        
-        for role in tree.findall(".//role"):
-            code = role.findtext("code")
-            name = role.findtext("name")
-            if code and name:
-                roles[name] = name
-        
-        return roles
-    except Exception as e:
-        logger.error(f"Ошибка получения должностей: {e}")
-        return {}
+async def get_positions_from_iiko() -> list[str]:
+    """Получает список должностей из iiko (уникальный, отсортированный)."""
+    token = await get_auth_token()
+    base_url = get_base_url()
+
+    url = f"{base_url}/resto/api/employees/roles"
+    async with httpx.AsyncClient(verify=False, timeout=30.0) as client:
+        response = await client.get(
+            url,
+            headers={"Cookie": f"key={token}"}
+        )
+    response.raise_for_status()
+
+    tree = ET.fromstring(response.text)
+    positions: set[str] = set()
+
+    for role in tree.findall(".//role"):
+        name = role.findtext("name")
+        if name:
+            positions.add(name.strip())
+
+    return sorted(positions, key=lambda x: x.lower())
 
 
 ## ────────────── Главное меню корректировки должности ──────────────
@@ -187,7 +182,7 @@ async def date_entered(message: Message, state: FSMContext):
         # Сохраняем дату
         await state.update_data(effective_date=effective_date)
         
-        # Получаем список должностей
+        # Получаем список должностей из iiko
         positions = await get_positions_from_iiko()
         
         if not positions:
@@ -200,7 +195,8 @@ async def date_entered(message: Message, state: FSMContext):
         
         # Создаем клавиатуру с должностями
         kb = InlineKeyboardBuilder()
-        for idx, position_name in enumerate(sorted(positions.keys())):
+        positions_list = sorted(positions)
+        for idx, position_name in enumerate(positions_list):
             kb.button(text=position_name, callback_data=f"corr_pos_{idx}")
         
         kb.adjust(1)  # Одна кнопка в ряд
@@ -232,8 +228,7 @@ async def position_selected(callback: CallbackQuery, state: FSMContext):
     idx = int(callback.data.replace("corr_pos_", ""))
     
     data = await state.get_data()
-    positions = data.get('positions', {})
-    positions_list = sorted(positions.keys())
+    positions_list = sorted(data.get('positions', []))
     
     if idx >= len(positions_list):
         await callback.answer("❌ Ошибка выбора должности", show_alert=True)

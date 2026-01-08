@@ -9,6 +9,7 @@ from aiogram.types import Message
 from states import RegisterStates
 from keyboards.main_keyboard import main_menu_keyboard
 from services.employees import fetch_employees
+from services.position_sheet_sync import sync_positions_sheet
 from db.employees_db import async_session, Employee
 from db.nomenclature_db import fetch_nomenclature, sync_nomenclature, init_db, sync_store_balances
 from db.group_db import init_groups_table, fetch_groups, sync_groups
@@ -23,6 +24,7 @@ from db.supplier_db import sync_suppliers
 from db.accounts_data import sync_accounts
 from services.db_queries import DBQueries
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from scripts.fill_fot_sheet import main as fill_fot_sheet_main
 logging.basicConfig(level=logging.INFO)
 
 # ────────────── Логгер и роутер для aiogram ──────────────
@@ -53,7 +55,9 @@ async def _run_loader(
 
 # ────────────── Общие загрузчики ──────────────
 async def _load_staff():
-    return await fetch_employees()
+    positions_count = await sync_positions_sheet()
+    employees = await fetch_employees()
+    return positions_count, employees
 
 
 async def _load_products():
@@ -87,6 +91,10 @@ async def _load_accounts():
     await sync_accounts()
 
 
+async def _load_fot_sheet():
+    await fill_fot_sheet_main()
+
+
 ## ────────────── Inline-меню и обработчики команд администратора ──────────────
 @router.message(F.text == "Команды")
 async def show_commands_list(message: types.Message):
@@ -100,6 +108,7 @@ async def show_commands_list(message: types.Message):
             [InlineKeyboardButton(text="📚 Загрузить справочники", callback_data="cmd:load_references")],
             [InlineKeyboardButton(text="🚚 Загрузить поставщиков", callback_data="cmd:load_suppliers")],
             [InlineKeyboardButton(text="💳 Загрузить счета", callback_data="cmd:load_accounts")],
+            [InlineKeyboardButton(text="🧾 Обновить ФОТ", callback_data="cmd:fill_fot")],
         ]
     )
     await message.answer("Выберите команду для выполнения:", reply_markup=keyboard)
@@ -112,7 +121,10 @@ async def callback_load_staff(callback: types.CallbackQuery):
     await _run_loader(
         callback.message,
         _load_staff,
-        lambda employees: f"✅ Загружено сотрудников: {len(employees)}",
+        lambda data: (
+            f"✅ Должности в таблице обновлены ({data[0]} строк). "
+            f"👥 Загружено сотрудников: {len(data[1])}"
+        ),
         edit=True,
     )
 
@@ -189,6 +201,18 @@ async def callback_load_accounts(callback: types.CallbackQuery):
     )
 
 
+@router.callback_query(F.data == "cmd:fill_fot")
+async def callback_fill_fot(callback: types.CallbackQuery):
+    """Ручной запуск заполнения ФОТ-листа"""
+    await callback.answer()
+    await _run_loader(
+        callback.message,
+        _load_fot_sheet,
+        "✅ ФОТ-лист обновлён",
+        edit=True,
+    )
+
+
 # ──────────────────────────────── /start ────────────────────────────────
 @router.message(F.text.startswith("/start"))
 async def start(message: Message, state: FSMContext):
@@ -252,7 +276,10 @@ async def load_staff(message: Message):
     await _run_loader(
         message,
         _load_staff,
-        lambda employees: f"👥 Загружено сотрудников: {len(employees)}",
+        lambda data: (
+            f"✅ Должности в таблице обновлены ({data[0]} строк). "
+            f"👥 Загружено сотрудников: {len(data[1])}"
+        ),
     )
 
 

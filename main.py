@@ -15,8 +15,10 @@ from db.employee_position_history_db import init_employee_position_history_db
 from db.settings_db import init_settings_table
 from db.departments_db import init_departments_table
 from services.position_monitor import run_periodic_monitoring
+from services.position_sheet_sync import run_daily_positions_sync_at_noon
 from services.negative_transfer_scheduler import run_periodic_negative_transfer
 from scripts.low_stock_scheduler import run_periodic_low_stock
+from services.fot_sheet_scheduler import run_daily_fot_fill
 
 ## ────────────── Функция запуска бота ──────────────
 async def _startup():
@@ -39,9 +41,17 @@ async def _startup():
     asyncio.create_task(run_periodic_negative_transfer(run_immediately=True))
     logging.info("🔄 Запущен планировщик авто-перемещений (первый запуск сразу, далее ежедневно 23:00)")
 
-    # Стоп-лист по min-остаткам: первый запуск сразу, далее каждые 2 часа
-    asyncio.create_task(run_periodic_low_stock())
-    logging.info("🔄 Запущен мониторинг остаточных стоп-листов (первый запуск сразу, далее каждые 2 часа)")
+    # Стоп-лист по min-остаткам: только по расписанию (каждые 2 часа), без мгновенного прогона
+    asyncio.create_task(run_periodic_low_stock(run_immediately=False))
+    logging.info("🔄 Запущен мониторинг остаточных стоп-листов (каждые 2 часа, без старта при запуске)")
+
+    # Ежедневное заполнение ФОТ-листа в 07:00
+    asyncio.create_task(run_daily_fot_fill(run_immediately=False))
+    logging.info("🔄 Запущено ежедневное заполнение ФОТ-листа (07:00)")
+
+    # Ежедневное обновление должностей в Google Sheets в 12:00
+    asyncio.create_task(run_daily_positions_sync_at_noon())
+    logging.info("🔄 Запущена ежедневная синхронизация должностей в таблицу (каждый день в 12:00)")
     
     # ensure Bot instance exists and use it for polling
     if config.bot is None:

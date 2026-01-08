@@ -232,9 +232,12 @@ async def calculate_revenue(data: list, date_from: str, date_to: str) -> Dict[st
     if "OrderDeleted" in df.columns:
         df = df[df["OrderDeleted"] == "NOT_DELETED"].copy()
     
+    # Снимок данных для бара — его считаем по отдельным фильтрам (список оплаченных типов и категорий)
+    df_bar_source = df.copy()
+
     # ⚠️ ВАЖНО: Фильтруем по DishCategory (только разрешённые категории)
     # OLAP API игнорирует параметр DishCategory, поэтому фильтруем в коде
-    # Исключаем: Модификаторы, Расходные материалы (как в iiko)
+    # Исключаем: Модификаторы, Расходные материалы (как в iiko) — для кухни/доставки оставляем как было
     excluded_categories = list(CATEGORY_EXCLUDE_FOR_COST)
     if "DishCategory" in df.columns:
         before = len(df)
@@ -281,11 +284,104 @@ async def calculate_revenue(data: list, date_from: str, date_to: str) -> Dict[st
             place_sum = place_data["DishSumInt"].sum()
             logger.debug(f"  Яндекс {place}: {place_sum:.2f}₽")
     
-    # Выручка бара (со скидкой, без Яндекс)
-    bar_revenue = df[is_bar & ~is_yandex]["DishDiscountSumInt"].sum()
-    
-    # Выручка кухни (со скидкой, без Яндекс)
-    kitchen_revenue = df[is_kitchen & ~is_yandex]["DishDiscountSumInt"].sum()
+    # Бар: считаем по заданным фильтрам оплаты и категорий (NULL включаем)
+    bar_allowed_pay = {"Наличные", "Оплата картой Сбербанк"}
+    bar_allowed_categories = {
+        None,
+        "Батончики",
+        "Выпечка",
+        "Горячие напитки",
+        "Добавки",
+        "Завтраки",
+        "Закуски",
+        "Кофе",
+        "Лимонады",
+        "Обучение ",
+        "Персонал",
+        "Пиво",
+        "Пицца",
+        "Пицца Яндекс",
+        "Растительное молоко",
+        "Реализация",
+        "Салаты",
+        "Свежевыжатые соки",
+        "Соус",
+        "Супы",
+        "ТМЦ",
+        "Холодные напитки",
+        "ЯНДЕКС",
+    }
+
+    pay_series_bar = df_bar_source[pay_types_col]
+    bar_pay_mask = pay_series_bar.isna() | pay_series_bar.astype(str).isin(bar_allowed_pay)
+
+    if "DishCategory" in df_bar_source.columns:
+        cat_series_bar = df_bar_source["DishCategory"]
+        bar_category_mask = cat_series_bar.isna() | cat_series_bar.astype(str).isin(bar_allowed_categories)
+    else:
+        bar_category_mask = True
+
+    bar_mask = (
+        df_bar_source[cooking_place_col].astype(str).str.lower() == "бар"
+    ) & bar_pay_mask & bar_category_mask
+
+    # Выручка бара (со скидкой)
+    bar_revenue = df_bar_source[bar_mask]["DishDiscountSumInt"].sum()
+
+    # Кухня (Кухня + Пицца) по заданным фильтрам оплаты/категорий
+    df_kitchen_source = df_bar_source
+    kitchen_allowed_pay = {"Наличные", "Оплата картой Сбербанк"}
+    kitchen_allowed_categories = {
+        None,
+        "Выпечка",
+        "Горячие напитки",
+        "Добавки",
+        "Завтраки",
+        "Закуски",
+        "Кофе",
+        "Лимонады",
+        "Персонал",
+        "Пиво",
+        "Пицца",
+        "Пицца Яндекс",
+        "Растительное молоко",
+        "Реализация",
+        "Салаты",
+        "Соус",
+        "Супы",
+        "Холодные напитки",
+        "ЯНДЕКС",
+    }
+
+    pay_series_kitchen = df_kitchen_source[pay_types_col]
+    kitchen_pay_mask = pay_series_kitchen.isna() | pay_series_kitchen.astype(str).isin(kitchen_allowed_pay)
+
+    if "DishCategory" in df_kitchen_source.columns:
+        cat_series_kitchen = df_kitchen_source["DishCategory"]
+        kitchen_category_mask = cat_series_kitchen.isna() | cat_series_kitchen.astype(str).isin(kitchen_allowed_categories)
+    else:
+        kitchen_category_mask = True
+
+    kitchen_place_mask = df_kitchen_source[cooking_place_col].astype(str).str.lower().isin(["кухня", "кухня-пицца", "пицца"])
+    kitchen_mask = kitchen_place_mask & kitchen_pay_mask & kitchen_category_mask
+
+    # Выручка кухни (со скидкой)
+    kitchen_revenue = df_kitchen_source[kitchen_mask]["DishDiscountSumInt"].sum()
+
+    # Отдельно: выручка через приложение (PayTypes фильтр), без ограничения по месту приготовления
+    app_allowed_pay = {"Оплата в приложении (Loyalhub)", "Проведенная оплата (LoyalHub)"}
+    pay_series_app = df_bar_source[pay_types_col]
+    app_pay_mask = pay_series_app.astype(str).isin(app_allowed_pay)
+
+    if "DishCategory" in df_bar_source.columns:
+        cat_series_app = df_bar_source["DishCategory"]
+        app_category_mask = cat_series_app.isna() | cat_series_app.astype(str).isin(kitchen_allowed_categories)
+    else:
+        app_category_mask = True
+
+    app_mask = app_pay_mask & app_category_mask
+
+    app_revenue = df_bar_source[app_mask]["DishDiscountSumInt"].sum()
     
     # Выручка Яндекс (БЕЗ скидки)
     yandex_raw = df[is_yandex]["DishSumInt"].sum()
@@ -307,12 +403,16 @@ async def calculate_revenue(data: list, date_from: str, date_to: str) -> Dict[st
     # ════════════════════════════════════════════════════════════════════
     cost_col = "ProductCostBase.ProductCost"
     
-    # 1. Себестоимость бара (без Яндекса, БЕЗ "(без оплаты)")
-    bar_cost = df[is_bar & ~is_yandex][cost_col].sum() if cost_col in df.columns else 0
+    # 1. Себестоимость бара (по тем же фильтрам)
+    bar_cost = df_bar_source[bar_mask][cost_col].sum() if cost_col in df_bar_source.columns else 0
     bar_cost_percent = (bar_cost / bar_revenue * 100) if bar_revenue > 0 else 0
     
-    # 2. Себестоимость кухни (без Яндекса, БЕЗ "(без оплаты)")
-    kitchen_cost = df[is_kitchen & ~is_yandex][cost_col].sum() if cost_col in df.columns else 0
+    # 2. Себестоимость кухни (по тем же фильтрам)
+    kitchen_cost = df_kitchen_source[kitchen_mask][cost_col].sum() if cost_col in df_kitchen_source.columns else 0
+
+    # Себестоимость по оплатам в приложении
+    app_cost = df_bar_source[app_mask][cost_col].sum() if cost_col in df_bar_source.columns else 0
+    app_cost_percent = (app_cost / app_revenue * 100) if app_revenue > 0 else 0
     kitchen_cost_percent = (kitchen_cost / kitchen_revenue * 100) if kitchen_revenue > 0 else 0
     
     # 3. Себестоимость Яндекса (только Яндекс)
@@ -355,6 +455,9 @@ async def calculate_revenue(data: list, date_from: str, date_to: str) -> Dict[st
         'bar_cost_percent': float(bar_cost_percent),
         'kitchen_cost': float(kitchen_cost),
         'kitchen_cost_percent': float(kitchen_cost_percent),
+        'app_revenue': float(app_revenue),
+        'app_cost': float(app_cost),
+        'app_cost_percent': float(app_cost_percent),
         'yandex_cost': float(yandex_cost),
         'yandex_cost_percent': float(yandex_cost_percent),
         'kitchen_total_cost': float(kitchen_total_cost),
@@ -971,6 +1074,10 @@ def format_revenue_report(
         "🍕 *КУХНЯ* (Кухня + Пицца)",
         f"  Выручка: {_fmt_currency(revenue_data['kitchen_revenue'])}",
         f"  Себестоимость: {_fmt_currency(revenue_data['kitchen_cost'])} ({_fmt_percent(revenue_data['kitchen_cost_percent'])})",
+        "",
+        "📱 *Приложение*",
+        f"  Выручка: {_fmt_currency(revenue_data.get('app_revenue', 0.0))}",
+        f"  Себестоимость: {_fmt_currency(revenue_data.get('app_cost', 0.0))} ({_fmt_percent(revenue_data.get('app_cost_percent', 0.0))})",
         "",
         "🚗 *ДОСТАВКА* (Яндекс)",
         f"  Выручка до вычета: {_fmt_currency(revenue_data['yandex_raw'])}",

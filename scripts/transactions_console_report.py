@@ -179,6 +179,7 @@ def filter_rows(
     rows: list[dict[str, Any]],
     accounts: Sequence[str] | None,
     product_types: Sequence[str] | None,
+    transaction_types: Sequence[str] | None = None,
 ) -> list[dict[str, Any]]:
     if not rows:
         return rows
@@ -187,11 +188,15 @@ def filter_rows(
     allowed_product_types = {
         _normalized(value) for value in product_types or [] if value and value.strip()
     }
-    if not allowed_accounts and not allowed_product_types:
+    allowed_trx_types = {
+        _normalized(value) for value in transaction_types or [] if value and value.strip()
+    }
+    if not allowed_accounts and not allowed_product_types and not allowed_trx_types:
         return rows
 
     account_field = resolve_field(rows, ("Account.Name", "Account", "Store"), "Account.Name")
     product_field = resolve_field(rows, ("Product.Type", "ProductType"), "Product.Type")
+    trx_field = resolve_field(rows, ("TransactionType", "DocumentType"), "TransactionType")
 
     filtered: list[dict[str, Any]] = []
     for row in rows:
@@ -200,6 +205,9 @@ def filter_rows(
             continue
         product_label = _normalized(str(row.get(product_field) or ""))
         if allowed_product_types and product_label not in allowed_product_types:
+            continue
+        trx_label = _normalized(str(row.get(trx_field) or ""))
+        if allowed_trx_types and trx_label not in allowed_trx_types:
             continue
         filtered.append(row)
     return filtered
@@ -308,14 +316,23 @@ def _build_hoz_groups(account_name: str, rows: Sequence[AccountGroupRow]) -> lis
         total_amount += row.amount
     result: list[AccountGroupRow] = []
     allocated = Decimal("0")
+    rm_bucket_key = "р/м бар зал кухня"
+    rm_amount_extra = Decimal("0")
     for key, display in buckets.items():
         amount = totals.get(key, Decimal("0"))
         allocated += amount
-        result.append(AccountGroupRow(account_name=account_name, group_label=display, amount=amount))
+        if key == rm_bucket_key:
+            rm_amount_extra = amount
+        else:
+            result.append(AccountGroupRow(account_name=account_name, group_label=display, amount=amount))
+
     remainder = total_amount - allocated
     if remainder < Decimal("0"):
         remainder = Decimal("0")
-    result.append(AccountGroupRow(account_name=account_name, group_label="Прочее", amount=remainder))
+
+    # Прочее докидываем в "Р/М бар зал кухня"
+    rm_total = rm_amount_extra + remainder
+    result.append(AccountGroupRow(account_name=account_name, group_label=buckets[rm_bucket_key], amount=rm_total))
     return result
 
 
@@ -420,6 +437,13 @@ def parse_args() -> argparse.Namespace:
         default=[],
         help="Фильтр по типу элемента номенклатуры (можно несколько)",
     )
+    parser.add_argument(
+        "--transaction-type",
+        dest="transaction_types",
+        action="append",
+        default=[],
+        help="Фильтр по типу транзакции (например, INVOICE, TRANSFER, INVENTORY_CORRECTION)",
+    )
     parser.add_argument("--limit", type=int, default=None, help="Ограничить количество строк в таблице")
     parser.add_argument("--timeout", type=float, default=90.0, help="HTTP timeout в секундах")
     parser.add_argument("--raw", action="store_true", help="Вывести сырые строки OLAP в JSON")
@@ -451,8 +475,9 @@ async def fetch_report(
 async def run_report(args: argparse.Namespace) -> None:
     accounts = uniq(args.accounts or []) or list(DEFAULT_ACCOUNT_FILTERS)
     product_types = uniq(args.product_types or []) or list(DEFAULT_PRODUCT_TYPE_FILTERS)
+    trx_types = uniq(args.transaction_types or [])
     rows = await fetch_report(args.date_from, args.date_to, accounts, product_types, args.timeout)
-    rows = filter_rows(rows, accounts, product_types)
+    rows = filter_rows(rows, accounts, product_types, trx_types)
 
     if args.raw:
         subset = rows[: max(1, min(args.raw_limit, len(rows)))] if rows else []

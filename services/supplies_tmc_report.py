@@ -32,6 +32,12 @@ DEFAULT_PRODUCT_TYPE_FILTERS: tuple[str, ...] = (
     "Товар",
     "Товар (GOODS)",
     "GOODS",
+    "Услуга",
+    "Услуга (SERVICE)",
+    "SERVICE",
+)
+DEFAULT_TRANSACTION_TYPE_FILTERS: tuple[str, ...] = (
+    "INVOICE",
 )
 
 
@@ -82,12 +88,21 @@ async def fetch_filtered_transactions(
     *,
     accounts: Sequence[str] | None = None,
     product_types: Sequence[str] | None = None,
+    transaction_types: Sequence[str] | None = None,
     timeout: float = 90.0,
 ) -> list[dict[str, Any]]:
     account_filters = _clean_list(accounts, DEFAULT_ACCOUNT_FILTERS)
     product_filters = _clean_list(product_types, DEFAULT_PRODUCT_TYPE_FILTERS)
-    raw_rows = await _fetch_transactions(date_from, date_to, account_filters, product_filters, timeout)
-    return filter_rows(raw_rows, account_filters, product_filters)
+    transaction_filters = _clean_list(transaction_types, DEFAULT_TRANSACTION_TYPE_FILTERS)
+    raw_rows = await _fetch_transactions(
+        date_from,
+        date_to,
+        account_filters,
+        product_filters,
+        transaction_filters,
+        timeout,
+    )
+    return filter_rows(raw_rows, account_filters, product_filters, transaction_filters)
 
 
 async def get_supplies_tmc_report(
@@ -96,6 +111,7 @@ async def get_supplies_tmc_report(
     *,
     accounts: Sequence[str] | None = None,
     product_types: Sequence[str] | None = None,
+    transaction_types: Sequence[str] | None = None,
     timeout: float = 90.0,
 ) -> SuppliesTmcReport:
     filtered_rows = await fetch_filtered_transactions(
@@ -103,6 +119,7 @@ async def get_supplies_tmc_report(
         date_to,
         accounts=accounts,
         product_types=product_types,
+        transaction_types=transaction_types,
         timeout=timeout,
     )
     grouped_rows = build_group_rows(filtered_rows)
@@ -155,11 +172,19 @@ async def _fetch_transactions(
     date_to: str,
     account_filters: Sequence[str],
     product_filters: Sequence[str],
+    transaction_filters: Sequence[str],
     timeout: float,
 ) -> list[dict[str, Any]]:
     token = await get_auth_token()
     base_url = get_base_url()
-    params = build_params(token, _to_human_date(date_from), _to_human_date(date_to), account_filters, product_filters)
+    params = build_params(
+        token,
+        _to_human_date(date_from),
+        _to_human_date(date_to),
+        account_filters,
+        product_filters,
+        transaction_filters,
+    )
     async with httpx.AsyncClient(base_url=base_url, timeout=timeout, verify=False) as client:
         response = await client.get("/resto/api/reports/olap", params=params)
     response.raise_for_status()
@@ -174,6 +199,7 @@ def build_params(
     to_date: str,
     account_filters: Sequence[str],
     product_type_filters: Sequence[str],
+    transaction_type_filters: Sequence[str],
 ) -> list[tuple[str, str]]:
     params: list[tuple[str, str]] = [
         ("key", token),
@@ -188,6 +214,8 @@ def build_params(
         params.append(("Account.Name", account))
     for product_type in product_type_filters:
         params.append(("Product.Type", product_type))
+    for transaction_type in transaction_type_filters:
+        params.append(("TransactionType", transaction_type))
     return params
 
 
@@ -195,16 +223,19 @@ def filter_rows(
     rows: list[dict[str, Any]],
     accounts: Sequence[str],
     product_types: Sequence[str],
+    transaction_types: Sequence[str],
 ) -> list[dict[str, Any]]:
     if not rows:
         return rows
     allowed_accounts = {_normalized(value) for value in accounts if value and value.strip()}
     allowed_product_types = {_normalized(value) for value in product_types if value and value.strip()}
-    if not allowed_accounts and not allowed_product_types:
+    allowed_transaction_types = {_normalized(value) for value in transaction_types if value and value.strip()}
+    if not allowed_accounts and not allowed_product_types and not allowed_transaction_types:
         return rows
 
     account_field = resolve_field(rows, ("Account.Name", "Account", "Store"), "Account.Name")
     product_field = resolve_field(rows, ("Product.Type", "ProductType"), "Product.Type")
+    trx_field = resolve_field(rows, ("TransactionType", "DocumentType"), "TransactionType")
 
     filtered: list[dict[str, Any]] = []
     for row in rows:
@@ -213,6 +244,9 @@ def filter_rows(
             continue
         product_label = _normalized(str(row.get(product_field) or ""))
         if allowed_product_types and product_label not in allowed_product_types:
+            continue
+        trx_label = _normalized(str(row.get(trx_field) or ""))
+        if allowed_transaction_types and trx_label not in allowed_transaction_types:
             continue
         filtered.append(row)
     return filtered
@@ -404,6 +438,7 @@ __all__ = [
     "ACCOUNT_CUSTOMIZATION",
     "DEFAULT_ACCOUNT_FILTERS",
     "DEFAULT_PRODUCT_TYPE_FILTERS",
+    "DEFAULT_TRANSACTION_TYPE_FILTERS",
     "fetch_filtered_transactions",
     "get_supplies_tmc_report",
     "build_group_rows",

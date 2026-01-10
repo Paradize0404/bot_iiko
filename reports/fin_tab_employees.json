@@ -1,0 +1,326 @@
+[
+  {
+    "id": 140670,
+    "name": "Аджитарова Асилия",
+    "department": "Клиническая",
+    "post": "Кассир администратор",
+    "direction_id": 148270,
+    "type": "direct-production",
+    "percentage": 100
+  },
+  {
+    "id": 137520,
+    "name": "Асташевская Эвита Евгеньевна",
+    "department": "Клиническая",
+    "post": "Управляющая",
+    "direction_id": 148270,
+    "type": "administrative",
+    "percentage": 100
+  },
+  {
+    "id": 140671,
+    "name": "Афанасьева Анастасия",
+    "department": "Клиническая",
+    "post": "кондитер",
+    "direction_id": 159851,
+    "type": "direct-production",
+    "percentage": 100
+  },
+  {
+    "id": 160218,
+    "name": "Бабушкин Сергей",
+    "department": "Клиническая",
+    "post": "Повар",
+    "direction_id": 148270,
+    "type": "direct-production",
+    "percentage": 100
+  },
+  {
+    "id": 160210,
+    "name": "Бармен Виктория новая",
+    "department": "Клиническая",
+    "post": "Бармен",
+    "direction_id": 148270,
+    "type": "direct-production",
+    "percentage": 100
+  },
+  {
+    "id": 138303,
+    "name": "Бахин Владислав Станиславович",
+    "department": "Клиническая",
+    "post": "Фин. дир.",
+    "direction_id": 148274,
+    "type": "administrative",
+    "percentage": 33
+  },
+  {
+    "id": 160209,
+    "name": "Валайтис Мартин",
+    "department": "Клиническая",
+    "post": "Бармен",
+    "direction_id": 148270,
+    "type": "direct-production",
+    "percentage": 100
+  },
+  {
+    "id": 144707,
+    "name": "Вылегжанина Татьяна",
+    "department": "Клиническая",
+    "post": "Цветочница",
+    "direction_id": 148270,
+    "type": "commercial",
+    "percentage": 100
+  },
+  {
+    "id": 155481,
+    "name": "Вязов Даниил",
+    "department": "Клиническая",
+    "post": "Повар",
+    "direction_id": 148270,
+    "type": "direct-production",
+    "percentage": 100
+  },
+  {
+    "id": 160212,
+    "name": "Зверев Сергей",
+    "department": "Клиническая",
+    "post": "Повар",
+    "direction_id": 148270,
+    "type": "direct-production",
+    "percentage": 100
+  },
+  {
+    "id": 138338,
+    "name": "Иванов Геннадий",
+    "department": "Клиническая",
+    "post": "Техник",
+    "direction_id": 148270,
+    "type": "direct-production",
+    "percentage": 100
+  },
+  {
+    "id": 160214,
+    "name": "Иванов Степан",
+    "department": "Клиническая",
+    "post": "Повар",
+    "direction_id": 148270,
+    "type": "direct-production",
+    "percentage": 100
+  },
+  {
+    "id": 144382,
+    "name": "Карагодин георгий Заготовщик",
+    "department": "Клиническая",
+    "post": "Заготовщик",
+    "direction_id": 148270,
+    "type": "direct-production",
+    "percentage": 100
+  },
+  {
+    "id": 138337,
+    "name": "Карагодин Георгий Шеф",
+    "department": "Клиническая",
+    "post": "Шеф",
+    "direction_id": 148270,
+    "type": "direct-production",
+    "percentage": 100
+  },
+  {
+    "id": 158526,
+    "name": "Кисилева Елизавета",
+    "department": "Клиническая",
+    "post": "Кассир администратор",
+    "direction_id": 148270,
+    "type": "direct-production",
+    "percentage": 100
+  },
+  {
+    "id": 155480,
+    "name": "Кожанов Олег",
+    "department": "Клиническая",
+    "post": "кондитер",
+    "direction_id": 159851,
+    "type": "direct-production",
+    "percentage": 100
+  },
+  {
+    "id": 138333,
+    "name": "Колычева Лариса",
+    "department": "Клиническая",
+    "post": "Послудомойка",
+    "direction_id": null,
+    "type": "administrative",
+    "percentage": 100
+  },
+  {
+    "id": 160216,
+    "name": "Кораблева Ирина",
+    "department": "Клиническая",
+    "post": "Послудомойка",
+    "direction_id": 148270,
+    "type": "direct-production",
+    "percentage": 100
+  },
+  {
+    "id": 160231,
+    "name": "Кто-то Как-то",
+    "department": "Клиническая",
+    "post": "Кассир администратор",
+    "direction_id": null,
+    "type": "direct-production",
+    "percentage": 100
+  },
+  {
+    "id": 160005,
+    "name": "Кудрявцев Андрей",
+    "department": "Клиническая",
+    "post": "Шеф",
+    "direction_id": 148270,
+    "type": "direct-production",
+    "percentage": 100
+  },
+  {
+    "id": 160208,
+    "name": "Левчик Ксюша",
+    "department": "Клиническая",
+    "post": "Кассир администратор",
+    "direction_id": 148270,
+    "type": "direct-production",
+    "percentage": 100
+  },
+  {
+    "id": 154598,
+    "name": "Лямм Оля",
+    "department": "Клиническая",
+    "post": "бухгалтер",
+    "direction_id": 148270,
+    "type": "administrative",
+    "percentage": 100
+  },
+  {
+    "id": 144709,
+    "name": "Мракова Валерия",
+    "department": "Клиническая",
+    "post": "Повар",
+    "direction_id": 148270,
+    "type": "direct-production",
+    "percentage": 100
+  },
+  {
+    "id": 138339,
+    "name": "Сорокина Виктория",
+    "department": "Клиническая",
+    "post": "Бармен",
+    "direction_id": 148270,
+    "type": "direct-production",
+    "percentage": 100
+  },
+  {
+    "id": 140669,
+    "name": "Сорокина Виктория Николаевна",
+    "department": "Клиническая",
+    "post": "бухгалтер",
+    "direction_id": 148270,
+    "type": "administrative",
+    "percentage": 100
+  },
+  {
+    "id": 138336,
+    "name": "Старцев Алексей",
+    "department": "Клиническая",
+    "post": "Повар",
+    "direction_id": 148270,
+    "type": "direct-production",
+    "percentage": 100
+  },
+  {
+    "id": 160215,
+    "name": "Стрельникова Татьяна",
+    "department": "Клиническая",
+    "post": "Послудомойка",
+    "direction_id": 148270,
+    "type": "direct-production",
+    "percentage": 100
+  },
+  {
+    "id": 140544,
+    "name": "Фриланс",
+    "department": "Клиническая",
+    "post": "",
+    "direction_id": 148270,
+    "type": "direct-production",
+    "percentage": 100
+  },
+  {
+    "id": 160223,
+    "name": "Фриланс бар",
+    "department": "Клиническая",
+    "post": "Бармен",
+    "direction_id": 148270,
+    "type": "direct-production",
+    "percentage": 100
+  },
+  {
+    "id": 160217,
+    "name": "Фриланс Заготовщик",
+    "department": "Клиническая",
+    "post": "Заготовщик",
+    "direction_id": 148270,
+    "type": "direct-production",
+    "percentage": 100
+  },
+  {
+    "id": 160221,
+    "name": "Фриланс Касса",
+    "department": "Клиническая",
+    "post": "Кассир администратор",
+    "direction_id": 148270,
+    "type": "direct-production",
+    "percentage": 100
+  },
+  {
+    "id": 160222,
+    "name": "Фриланс Мойка",
+    "department": "Клиническая",
+    "post": "Послудомойка",
+    "direction_id": 148270,
+    "type": "direct-production",
+    "percentage": 100
+  },
+  {
+    "id": 160220,
+    "name": "Фриланс Пицца",
+    "department": "Клиническая",
+    "post": "Повар",
+    "direction_id": 148270,
+    "type": "direct-production",
+    "percentage": 100
+  },
+  {
+    "id": 160219,
+    "name": "Фриланс Повар",
+    "department": "Клиническая",
+    "post": "Повар",
+    "direction_id": 148270,
+    "type": "direct-production",
+    "percentage": 100
+  },
+  {
+    "id": 160211,
+    "name": "Чадюк Арина",
+    "department": "Клиническая",
+    "post": "Повар",
+    "direction_id": 148270,
+    "type": "direct-production",
+    "percentage": 100
+  },
+  {
+    "id": 160213,
+    "name": "Ялынин Максим",
+    "department": "Клиническая",
+    "post": "Повар",
+    "direction_id": 148270,
+    "type": "direct-production",
+    "percentage": 100
+  }
+]

@@ -1,0 +1,63 @@
+{
+  "categories": {
+    "bar": { "id": 27315, "name": "Бар", "comment": "Выручка бара без учёта яндекса и приложения" },
+    "kitchen": { "id": 27314, "name": "Кухня", "comment": "Выручка кухни без учета яндекса и приложения" },
+    "app": { "id": 27316, "name": "Приложение", "comment": "Выручка из приложения, без кухни/бара/пиццы" },
+    "yandex": { "id": 27317, "name": "Яндекс", "comment": "Выручка с сервиса Яндекс после вычета комиссии" },
+    "production": { "id": 27318, "name": "Производство", "comment": "Отправка товара по расходным накладным" }
+  },
+  "directions": {
+    "klinicheskaya": { "id": 148270, "name": "Клиническая", "parentId": 148269 },
+    "production_root": { "id": 159850, "name": "Производство", "parentId": null },
+    "production_child": { "id": 159851, "name": "Производство", "parentId": 159850 }
+  },
+  "bindings": {
+    "bar": "klinicheskaya",
+    "kitchen": "klinicheskaya",
+    "app": "klinicheskaya",
+    "yandex": "klinicheskaya",
+    "production": "production_child"
+  },
+  "fintablo_categories": [
+    {"id": 27314, "name": "Кухня", "type": "income", "pnlType": "income", "categoryId": null, "comment": "Выручка кухни без учета яндекса и приложения"},
+    {"id": 27315, "name": "Бар", "type": "income", "pnlType": "income", "categoryId": null, "comment": "Выручка бара без учёта яндекса и приложения"},
+    {"id": 27316, "name": "Приложение", "type": "income", "pnlType": "income", "categoryId": null, "comment": "Выручка по категории только из приложения, без учета кухни, бара, пиццеблока"},
+    {"id": 27317, "name": "Яндекс", "type": "income", "pnlType": "income", "categoryId": null, "comment": "Выручка с сервиса Яндекс с вычетом 36.5% "},
+    {"id": 27318, "name": "Производство", "type": "income", "pnlType": "income", "categoryId": null, "comment": "Отправка товара по расходным накладным"},
+    {"id": 27319, "name": "Сырьевая себестоимость", "type": "costprice", "pnlType": "direct-variable", "categoryId": null, "comment": "Итоговая себестоимость. Себес по расходным ставим в графу \"Производство\"  "},
+    {"id": 27321, "name": "Списания продуктов", "type": "costprice", "pnlType": "direct-variable", "categoryId": null, "comment": "Списания без статьи \"Учредители\" "},
+    {"id": 27323, "name": "Коммерческие расходы на персонал", "type": "outcome", "pnlType": "commercial", "categoryId": null, "comment": "Корпоративные и любый расходы на персонал, не связанные с производственной деятельностью "},
+    {"id": 27324, "name": "Уборочный инвентарь/Химия", "type": "outcome", "pnlType": "direct-production", "categoryId": null, "comment": "Средства для мойки, веники/лопаты, химия"},
+    {"id": 27325, "name": "Упаковка", "type": "costprice", "pnlType": "direct-variable", "categoryId": null, "comment": "Одноразовая посуда и упаковка для отдачи  с собой и на доставку"},
+    {"id": 27326, "name": "Расходные материалы", "type": "costprice", "pnlType": "direct-variable", "categoryId": null, "comment": "Всё, что нужно для обеспечения работы персонала (мусорные пакеты, бумажные полотенца и тд)"},
+    {"id": 27327, "name": "Покупка ТМЦ ", "type": "outcome", "pnlType": "direct-production", "categoryId": null, "comment": "Покупка инвентаря на бар, зал, кухня"},
+    {"id": 27328, "name": "Стекло/Посуда", "type": "outcome", "pnlType": "direct-production", "categoryId": null, "comment": "Покупка посуды гостевой на бар/зал"},
+    {"id": 27329, "name": "Декор материалы", "type": "outcome", "pnlType": "commercial", "categoryId": null, "comment": "Деньги, потраченные на озеленение летки, фасада, растения, горшки и прочие украшения зала "},
+    {"id": 27330, "name": "Музыка", "type": "outcome", "pnlType": "commercial", "categoryId": null, "comment": "Проигрование музыки в заведении, услуги/материалы, подписки "},
+    {"id": 27331, "name": "Продвижение (2гис, яндекс)", "type": "outcome", "pnlType": "commercial", "categoryId": null, "comment": "Оплата рекламы на сервисах карт"},
+    {"id": 27332, "name": "Контент/SMM", "type": "outcome", "pnlType": "commercial", "categoryId": null, "comment": "Продвижение в инстаграмме и других соц. сетях "},
+    {"id": 27333, "name": "Услуги полиграфии", "type": "outcome", "pnlType": "direct-production", "categoryId": null, "comment": "Печать меню, наклеек, буклетов, полиграфия "},
+    {"id": 27334, "name": "Коммунальные расходы", "type": "outcome", "pnlType": "direct-production", "categoryId": null, "comment": "Оплата за электричество, воду, газ"},
+    {"id": 27335, "name": "Эксплуатация помещения", "type": "outcome", "pnlType": "direct-production", "categoryId": null, "comment": "Всё, что связано с тех обслуживанием и ремонтом помещения"},
+    {"id": 27336, "name": "Санитарное обслуживание", "type": "outcome", "pnlType": "direct-production", "categoryId": null, "comment": "Дезинсекция, жирики, биологические исследования, коврики, всё, что связанно с чистотой в заведение "},
+    {"id": 27337, "name": "Доставка (курьер)", "type": "outcome", "pnlType": "commercial", "categoryId": null, "comment": "Оплата собственных курьеров по заказам Яндекса и приложения, по меню "},
+    {"id": 27338, "name": "Экспедитор", "type": "outcome", "pnlType": "direct-production", "categoryId": null, "comment": "Услуги доставки по расходным накладным"},
+    {"id": 27339, "name": "ИТ и связь", "type": "outcome", "pnlType": "administrative", "categoryId": null, "comment": "Интернет, подписки на сервисы учета автоматизаций, коммуникации  и доставок"},
+    {"id": 27340, "name": "Аренда", "type": "outcome", "pnlType": "direct-production", "categoryId": null, "comment": "Аренда помещения"},
+    {"id": 27341, "name": "Обновление ОС", "type": "outcome", "pnlType": "outcome-under-ebitda", "categoryId": null, "comment": "Фонд, в который происходит отчисление средств на покупку/ремонт .  Этот фонд составляем ос 2% от выручки без происшествий "},
+    {"id": 27342, "name": "Обучение ", "type": "outcome", "pnlType": "outcome-under-ebitda", "categoryId": null, "comment": "Фонд, в который просиходит отчисление для обучения персонала и повышения квалификации. 1% отчислений"},
+    {"id": 27343, "name": "Эквайринг", "type": "outcome", "pnlType": "commercial", "categoryId": null, "comment": "Процент банку за операции по счетам"},
+    {"id": 27346, "name": "Аудит/дегустация", "type": "outcome", "pnlType": "commercial", "categoryId": null, "comment": "аудит и дегустация на яндексе/из других заведений"},
+    {"id": 27348, "name": "Непредвиденные обстоятельства/расходы", "type": "outcome", "pnlType": "outcome-under-ebitda", "categoryId": null, "comment": "Статья для незапланированных расходов"}
+  ],
+  "fintablo_directions": [
+    {"id": 147929, "name": "Сельма", "parentId": null, "description": "Пиццерия ", "archived": 0},
+    {"id": 148269, "name": "Клиническая", "parentId": null, "description": "Пиццерия ", "archived": 0},
+    {"id": 148270, "name": "Клиническая", "parentId": 148269, "description": "", "archived": 0},
+    {"id": 148273, "name": "Аксакова", "parentId": null, "description": "Пиццерия ", "archived": 0},
+    {"id": 148274, "name": "Аксакова", "parentId": 148273, "description": "", "archived": 0},
+    {"id": 148478, "name": "Сельма", "parentId": 147929, "description": "", "archived": 0},
+    {"id": 159850, "name": "Производство", "parentId": null, "description": "", "archived": 0},
+    {"id": 159851, "name": "Производство", "parentId": 159850, "description": "", "archived": 0}
+  ]
+}

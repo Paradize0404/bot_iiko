@@ -1,7 +1,7 @@
 
 # ────────────── Импорт библиотек и общих функций ──────────────
 import logging
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, Iterable
 from aiogram import Router, F, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -19,6 +19,8 @@ from db.stores_db import (
     fetch_stores,
     sync_stores,
 )
+from fin_tab.fin_tab_employees_db import async_session as ft_async_session, FinTabEmployee
+from sqlalchemy import select
 from db.sprav_db import sync_all_references
 from db.supplier_db import sync_suppliers
 from db.accounts_data import sync_accounts
@@ -109,6 +111,7 @@ async def show_commands_list(message: types.Message):
             [InlineKeyboardButton(text="🚚 Загрузить поставщиков", callback_data="cmd:load_suppliers")],
             [InlineKeyboardButton(text="💳 Загрузить счета", callback_data="cmd:load_accounts")],
             [InlineKeyboardButton(text="🧾 Обновить ФОТ", callback_data="cmd:fill_fot")],
+            [InlineKeyboardButton(text="🆔 Показать FinTablo ID", callback_data="cmd:show_fintablo_ids")],
         ]
     )
     await message.answer("Выберите команду для выполнения:", reply_markup=keyboard)
@@ -127,6 +130,50 @@ async def callback_load_staff(callback: types.CallbackQuery):
         ),
         edit=True,
     )
+
+
+async def _fetch_fintablo_ids() -> list[tuple[str, int]]:
+    async with ft_async_session() as session:
+        result = await session.execute(
+            select(FinTabEmployee.name, FinTabEmployee.id).order_by(FinTabEmployee.name)
+        )
+        return [(row[0], row[1]) for row in result.all()]
+
+
+def _chunk_messages(lines: Iterable[str], limit: int = 3800) -> list[str]:
+    chunks: list[str] = []
+    current: list[str] = []
+    current_len = 0
+    for line in lines:
+        if current_len + len(line) + 1 > limit and current:
+            chunks.append("\n".join(current))
+            current = []
+            current_len = 0
+        current.append(line)
+        current_len += len(line) + 1
+    if current:
+        chunks.append("\n".join(current))
+    return chunks
+
+
+@router.callback_query(F.data == "cmd:show_fintablo_ids")
+async def callback_show_fintablo_ids(callback: types.CallbackQuery):
+    """Показать список сотрудников с FinTablo ID."""
+    await callback.answer()
+    try:
+        pairs = await _fetch_fintablo_ids()
+        if not pairs:
+            await callback.message.edit_text("ℹ️ Нет данных FinTablo ID (таблица пуста)")
+            return
+
+        lines = [f"{name} — <code>{emp_id}</code>" for name, emp_id in pairs]
+        chunks = _chunk_messages(lines)
+
+        await callback.message.edit_text("🆔 FinTablo ID загружены, отправляю список...")
+        for chunk in chunks:
+            await callback.message.answer(chunk)
+    except Exception as exc:  # noqa: BLE001
+        await safe_send_error(callback.message, exc)
 
 
 @router.callback_query(F.data == "cmd:load_products")

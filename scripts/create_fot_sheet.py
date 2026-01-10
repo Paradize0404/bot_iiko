@@ -69,6 +69,7 @@ def ensure_fot_sheet(year: int, month: int) -> str:
 
     headers = [
         [
+            "FinTablo ID",
             "Сотрудник",
             "Должность",
             "Начислено, р.",
@@ -83,13 +84,13 @@ def ensure_fot_sheet(year: int, month: int) -> str:
         ]
     ]
     # Пара пустых строк для ввода данных и строка итого (динамически суммирует всё между шапкой и итого)
-    empty_rows = [["" for _ in range(11)] for _ in range(2)]
+    empty_rows = [["" for _ in range(12)] for _ in range(2)]
     # В формуле ROW()-1 берёт строку итого минус 1 => суммирует от A2 до строки перед итогами
     totals = [
         [
             "Итого",
             "",
-            "=SUM(INDIRECT(\"C2:C\"&ROW()-1))",
+            "",
             "=SUM(INDIRECT(\"D2:D\"&ROW()-1))",
             "=SUM(INDIRECT(\"E2:E\"&ROW()-1))",
             "=SUM(INDIRECT(\"F2:F\"&ROW()-1))",
@@ -98,11 +99,12 @@ def ensure_fot_sheet(year: int, month: int) -> str:
             "=SUM(INDIRECT(\"I2:I\"&ROW()-1))",
             "=SUM(INDIRECT(\"J2:J\"&ROW()-1))",
             "=SUM(INDIRECT(\"K2:K\"&ROW()-1))",
+            "=SUM(INDIRECT(\"L2:L\"&ROW()-1))",
         ]
     ]
-    client.write_range(f"'{title}'!A1:K1", headers)
-    client.write_range(f"'{title}'!A2:K3", empty_rows)
-    client.write_range(f"'{title}'!A4:K4", totals)
+    client.write_range(f"'{title}'!A1:L1", headers)
+    client.write_range(f"'{title}'!A2:L3", empty_rows)
+    client.write_range(f"'{title}'!A4:L4", totals)
 
     if sheet_id is not None:
         # Цвета и форматы, чтобы приблизить к макету
@@ -137,7 +139,7 @@ def ensure_fot_sheet(year: int, month: int) -> str:
                         "startRowIndex": 0,
                         "endRowIndex": 4,
                         "startColumnIndex": 0,
-                        "endColumnIndex": 11,
+                        "endColumnIndex": 12,
                     },
                     "cell": {"userEnteredFormat": {"textFormat": {"fontFamily": "Calibri"}}},
                     "fields": "userEnteredFormat.textFormat.fontFamily",
@@ -151,7 +153,7 @@ def ensure_fot_sheet(year: int, month: int) -> str:
                         "startRowIndex": 0,
                         "endRowIndex": 1,
                         "startColumnIndex": 0,
-                        "endColumnIndex": 11,
+                        "endColumnIndex": 12,
                     },
                     "cell": {
                         "userEnteredFormat": {
@@ -162,15 +164,15 @@ def ensure_fot_sheet(year: int, month: int) -> str:
                     "fields": "userEnteredFormat(backgroundColor,textFormat)",
                 }
             },
-            # Нередактируемые колонки (A-E, K) — бледно-розовый
+            # Нередактируемые колонки D-F (Начислено, Ставка, Бонус)
             {
                 "repeatCell": {
                     "range": {
                         "sheetId": sheet_id,
                         "startRowIndex": 1,
                         "endRowIndex": 4,
-                        "startColumnIndex": 0,
-                        "endColumnIndex": 5,
+                        "startColumnIndex": 3,
+                        "endColumnIndex": 6,
                     },
                     "cell": {
                         "userEnteredFormat": {
@@ -186,8 +188,8 @@ def ensure_fot_sheet(year: int, month: int) -> str:
                         "sheetId": sheet_id,
                         "startRowIndex": 1,
                         "endRowIndex": 4,
-                        "startColumnIndex": 10,  # K
-                        "endColumnIndex": 11,
+                        "startColumnIndex": 11,  # L
+                        "endColumnIndex": 12,
                     },
                     "cell": {
                         "userEnteredFormat": {
@@ -198,15 +200,15 @@ def ensure_fot_sheet(year: int, month: int) -> str:
                     "fields": "userEnteredFormat(backgroundColor,textFormat)",
                 }
             },
-            # Ручные колонки F,G,H — светло-жёлтый
+            # Ручные колонки G,H,I — светло-жёлтый
             {
                 "repeatCell": {
                     "range": {
                         "sheetId": sheet_id,
                         "startRowIndex": 1,
                         "endRowIndex": 4,
-                        "startColumnIndex": 5,
-                        "endColumnIndex": 8,
+                        "startColumnIndex": 6,
+                        "endColumnIndex": 9,
                     },
                     "cell": {
                         "userEnteredFormat": {
@@ -224,8 +226,8 @@ def ensure_fot_sheet(year: int, month: int) -> str:
                         "sheetId": sheet_id,
                         "startRowIndex": 1,
                         "endRowIndex": 4,
-                        "startColumnIndex": 8,  # I,J
-                        "endColumnIndex": 10,
+                        "startColumnIndex": 9,  # J,K
+                        "endColumnIndex": 11,
                     },
                     "cell": {
                         "userEnteredFormat": {
@@ -236,15 +238,15 @@ def ensure_fot_sheet(year: int, month: int) -> str:
                     "fields": "userEnteredFormat(backgroundColor,numberFormat)",
                 }
             },
-            # Числовой формат ₽ для C..K (данные + итого)
+            # Числовой формат ₽ для D..L (данные + итого)
             {
                 "repeatCell": {
                     "range": {
                         "sheetId": sheet_id,
                         "startRowIndex": 1,
                         "endRowIndex": 4,
-                        "startColumnIndex": 2,
-                        "endColumnIndex": 11,
+                        "startColumnIndex": 3,
+                        "endColumnIndex": 12,
                     },
                     "cell": {
                         "userEnteredFormat": {
@@ -262,7 +264,7 @@ def ensure_fot_sheet(year: int, month: int) -> str:
                         "startRowIndex": 1,
                         "endRowIndex": 3,
                         "startColumnIndex": 0,
-                        "endColumnIndex": 11,
+                        "endColumnIndex": 12,
                     },
                     "cell": {
                         "userEnteredFormat": {
@@ -280,7 +282,7 @@ def ensure_fot_sheet(year: int, month: int) -> str:
                         "startRowIndex": 3,  # строка 4 (итого)
                         "endRowIndex": 4,
                         "startColumnIndex": 0,
-                        "endColumnIndex": 11,
+                        "endColumnIndex": 12,
                     },
                     "cell": {
                         "userEnteredFormat": {
@@ -291,7 +293,7 @@ def ensure_fot_sheet(year: int, month: int) -> str:
                     "fields": "userEnteredFormat(backgroundColor,textFormat)",
                 }
             },
-            # Грид границы для блока A1:I4
+            # Грид границы для блока A1:L4
             {
                 "updateBorders": {
                     "range": {
@@ -299,7 +301,7 @@ def ensure_fot_sheet(year: int, month: int) -> str:
                         "startRowIndex": 0,
                         "endRowIndex": 4,
                         "startColumnIndex": 0,
-                        "endColumnIndex": 11,
+                        "endColumnIndex": 12,
                     },
                     "top": border,
                     "bottom": border,
@@ -326,7 +328,7 @@ def ensure_fot_sheet(year: int, month: int) -> str:
             },
             {
                 "updateDimensionProperties": {
-                    "range": {"sheetId": sheet_id, "dimension": "COLUMNS", "startIndex": 2, "endIndex": 11},
+                    "range": {"sheetId": sheet_id, "dimension": "COLUMNS", "startIndex": 2, "endIndex": 12},
                     "properties": {"pixelSize": 120},
                     "fields": "pixelSize",
                 }

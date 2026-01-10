@@ -7,7 +7,7 @@ import logging
 from utils.db_stores import get_pool
 
 logger = logging.getLogger(__name__)
-DEFAULT_YANDEX_COMMISSION = 42.0  # Временный дефолт, пока не задано в БД
+DEFAULT_YANDEX_COMMISSION = 36.5  # Дефолт комиссии Яндекс, если в БД нет значения
 
 
 async def get_yandex_commission() -> float:

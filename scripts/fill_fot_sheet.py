@@ -18,6 +18,22 @@ from scripts.create_fot_sheet import make_title, ensure_fot_sheet
 from services.salary_from_iiko import fetch_salary_from_iiko
 
 
+HEADERS = [
+    "FinTablo ID",
+    "Сотрудник",
+    "Должность",
+    "Начислено, р.",
+    "Ставка",
+    "Бонус",
+    "Начисления",
+    "Удержания",
+    "Аванс",
+    "25 Выплата",
+    "10 Выплата",
+    "К выплате, р.",
+]
+
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -115,22 +131,21 @@ async def fetch_employees_with_positions_filtered(from_date: str, to_date: str) 
 
 
 def build_totals_row(row_idx: int) -> list[str]:
-    """
-    Формирует строку итого на заданной строке (1-based).
-    """
+    """Строка итого для переменного числа строк."""
 
     return [
-        "Итого",
-        "",
-        f"=SUM(C2:C{row_idx - 1})",
-        f"=SUM(D2:D{row_idx - 1})",
-        f"=SUM(E2:E{row_idx - 1})",
-        f"=SUM(F2:F{row_idx - 1})",
-        f"=SUM(G2:G{row_idx - 1})",
-        f"=SUM(H2:H{row_idx - 1})",
-        f"=SUM(I2:I{row_idx - 1})",
-        f"=SUM(J2:J{row_idx - 1})",
-        f"=SUM(K2:K{row_idx - 1})",
+        "Итого",  # A
+        "",  # B
+        "",  # C
+        f"=SUM(D2:D{row_idx - 1})",  # D
+        f"=SUM(E2:E{row_idx - 1})",  # E
+        f"=SUM(F2:F{row_idx - 1})",  # F
+        f"=SUM(G2:G{row_idx - 1})",  # G
+        f"=SUM(H2:H{row_idx - 1})",  # H
+        f"=SUM(I2:I{row_idx - 1})",  # I
+        f"=SUM(J2:J{row_idx - 1})",  # J
+        f"=SUM(K2:K{row_idx - 1})",  # K
+        f"=SUM(L2:L{row_idx - 1})",  # L
     ]
 
 
@@ -147,6 +162,38 @@ def _to_float(val: str | float | int | None) -> float:
         return float(text)
     except ValueError:
         return 0.0
+
+
+def ensure_fintablo_column(client: GoogleSheetsClient, service, sheet_id: int, title: str) -> None:
+    """Убедиться, что первый столбец — FinTablo ID, и шапка обновлена под 12 колонок."""
+
+    headers_raw = client.read_range(f"'{title}'!A1:L1")
+    header_row = headers_raw[0] if headers_raw else []
+    has_id = header_row and (header_row[0] or "").strip() == "FinTablo ID"
+
+    if not has_id:
+        logger.info("Добавляем столбец FinTablo ID в лист '%s'", title)
+        service.spreadsheets().batchUpdate(
+            spreadsheetId=client.spreadsheet_id,
+            body={
+                "requests": [
+                    {
+                        "insertDimension": {
+                            "range": {
+                                "sheetId": sheet_id,
+                                "dimension": "COLUMNS",
+                                "startIndex": 0,
+                                "endIndex": 1,
+                            },
+                            "inheritFromBefore": False,
+                        }
+                    }
+                ]
+            },
+        ).execute()
+
+    logger.debug("Обновляем шапку A1:L1 под FinTablo ID и 12 колонок")
+    client.write_range(f"'{title}'!A1:L1", [HEADERS])
 
 
 def write_sheet(rows: list[tuple[str, str, float, float, float]], title: str) -> None:
@@ -166,56 +213,64 @@ def write_sheet(rows: list[tuple[str, str, float, float, float]], title: str) ->
         logger.error("Не найден лист '%s'", title)
         raise RuntimeError(f"Sheet '{title}' not found")
 
+    ensure_fintablo_column(client, service, sheet_id, title)
+
     totals_row_index = len(rows) + 2  # 1 (header) + data + итого
 
     # Сохраняем ручные значения, привязывая к сотруднику (чтобы переносились при смещении)
-    manual_by_key: dict[tuple[str, str], tuple[str, str, str, str, str]] = {}
-    manual_by_name: dict[str, tuple[str, str, str, str, str]] = {}
-    logger.debug("Читаем существующие данные A2:J1000 для сохранения ручных значений")
-    existing_full = client.read_range(f"'{title}'!A2:J1000")
+    manual_by_key: dict[tuple[str, str], tuple[str, str, str, str, str, str]] = {}
+    manual_by_name: dict[str, tuple[str, str, str, str, str, str]] = {}
+    logger.debug("Читаем существующие данные A2:L1000 для сохранения ручных значений")
+    existing_full = client.read_range(f"'{title}'!A2:L1000")
     for row in existing_full:
         if not row or len(row) < 1:
             continue
-        name_raw = row[0] if len(row) >= 1 else ""
-        pos_raw = row[1] if len(row) >= 2 else ""
+        fin_id = row[0] if len(row) >= 1 else ""
+        name_raw = row[1] if len(row) >= 2 else ""
+        pos_raw = row[2] if len(row) >= 3 else ""
         name_key = name_raw.strip().lower()
         pos_key = pos_raw.strip().lower()
         manual_tuple = (
-            row[5] if len(row) >= 6 else "",
+            fin_id,
             row[6] if len(row) >= 7 else "",
             row[7] if len(row) >= 8 else "",
             row[8] if len(row) >= 9 else "",
             row[9] if len(row) >= 10 else "",
+            row[10] if len(row) >= 11 else "",
         )
         key = (name_key, pos_key)
         if name_key:
-            if key not in manual_by_key:
-                manual_by_key[key] = manual_tuple
-            if name_key not in manual_by_name:
-                manual_by_name[name_key] = manual_tuple
+            manual_by_key.setdefault(key, manual_tuple)
+            manual_by_name.setdefault(name_key, manual_tuple)
 
     data_rows: list[list[str | float]] = []
     for idx, (name, position, rate, bonus, penalty) in enumerate(rows, start=2):
         name_key = (name or "").strip().lower()
         pos_key = (position or "").strip().lower()
-        manual_tuple = manual_by_key.get((name_key, pos_key)) or manual_by_name.get(name_key) or ("", "", "", "", "")
-        manual_acc_raw, manual_penalty_raw, advance_raw, payout_25_raw, payout_10_raw = manual_tuple
+        manual_tuple = manual_by_key.get((name_key, pos_key)) or manual_by_name.get(name_key) or ("", "", "", "", "", "")
+        fin_id_raw, manual_acc_raw, manual_penalty_raw, advance_raw, payout_25_raw, payout_10_raw = manual_tuple
 
         manual_acc = manual_acc_raw if manual_acc_raw != "" else ""
-        manual_penalty = manual_penalty_raw if manual_penalty_raw != "" else penalty
+        if manual_penalty_raw != "":
+            manual_penalty = manual_penalty_raw
+        elif penalty:
+            manual_penalty = penalty
+        else:
+            manual_penalty = ""
         advance = advance_raw if advance_raw != "" else ""
         payout_25 = payout_25_raw if payout_25_raw != "" else ""
         payout_10 = payout_10_raw if payout_10_raw != "" else ""
 
         is_freelancer = "фриланс" in (position or "").lower()
-        total_formula = f"=ROUND(D{idx}+E{idx}+F{idx}-G{idx})"
-        payout_formula = f"=ROUND(C{idx}-I{idx}-J{idx})"
+        total_formula = f"=ROUND(E{idx}+F{idx}+G{idx}-H{idx})"
+        payout_formula = f"=ROUND(D{idx}-J{idx}-K{idx})"
         if is_freelancer:
-            payout_10 = f"=C{idx}"
-            logger.debug("Фрилансер: %s — авто-выплата J=C%d", name, idx)
+            payout_10 = f"=D{idx}"
+            logger.debug("Фрилансер: %s — авто-выплата K=D%d", name, idx)
 
         data_rows.append(
             [
+                fin_id_raw,
                 name,
                 position,
                 total_formula,
@@ -233,12 +288,12 @@ def write_sheet(rows: list[tuple[str, str, float, float, float]], title: str) ->
     all_rows = data_rows + [build_totals_row(totals_row_index)]
 
     # Чистим старый диапазон (во избежание дублей строк итого и "хвостов" от прошлых запусков)
-    logger.debug("Очищаем диапазон перед записью A2:K1000")
-    client.clear_range(f"'{title}'!A2:K1000")
+    logger.debug("Очищаем диапазон перед записью A2:L1000")
+    client.clear_range(f"'{title}'!A2:L1000")
 
     # Записываем данные
-    logger.debug("Пишем диапазон A2:K%d", totals_row_index)
-    client.write_range(f"'{title}'!A2:K{totals_row_index}", all_rows)
+    logger.debug("Пишем диапазон A2:L%d", totals_row_index)
+    client.write_range(f"'{title}'!A2:L{totals_row_index}", all_rows)
 
     # Форматирование
     header_color = {"red": 0.9, "green": 0.9, "blue": 0.9}
@@ -258,7 +313,7 @@ def write_sheet(rows: list[tuple[str, str, float, float, float]], title: str) ->
                 "fields": "userEnteredFormat(backgroundColor)",
             }
         },
-        # Шрифт Calibri для блока A1:K
+        # Шрифт Calibri для блока A1:L
         {
             "repeatCell": {
                 "range": {
@@ -266,7 +321,7 @@ def write_sheet(rows: list[tuple[str, str, float, float, float]], title: str) ->
                     "startRowIndex": 0,
                     "endRowIndex": totals_row_index,
                     "startColumnIndex": 0,
-                    "endColumnIndex": 11,
+                    "endColumnIndex": 12,
                 },
                 "cell": {"userEnteredFormat": {"textFormat": {"fontFamily": "Calibri"}}},
                 "fields": "userEnteredFormat.textFormat.fontFamily",
@@ -280,7 +335,7 @@ def write_sheet(rows: list[tuple[str, str, float, float, float]], title: str) ->
                     "startRowIndex": 0,
                     "endRowIndex": 1,
                     "startColumnIndex": 0,
-                    "endColumnIndex": 11,
+                    "endColumnIndex": 12,
                 },
                 "cell": {
                     "userEnteredFormat": {
@@ -291,29 +346,29 @@ def write_sheet(rows: list[tuple[str, str, float, float, float]], title: str) ->
                 "fields": "userEnteredFormat(backgroundColor,textFormat)",
             }
         },
-        # Нередактируемые колонки C-E (2..5) — бледно-розовый
+        # Нередактируемые колонки D-F (Начислено, Ставка, Бонус)
         {
             "repeatCell": {
                 "range": {
                     "sheetId": sheet_id,
                     "startRowIndex": 1,
                     "endRowIndex": totals_row_index,
-                    "startColumnIndex": 2,
-                    "endColumnIndex": 5,
+                    "startColumnIndex": 3,
+                    "endColumnIndex": 6,
                 },
                 "cell": {"userEnteredFormat": {"backgroundColor": non_edit_color}},
                 "fields": "userEnteredFormat.backgroundColor",
             }
         },
-        # Ручные колонки F,G,H (5..8) — светло-жёлтый
+        # Ручные колонки G,H,I — светло-жёлтый
         {
             "repeatCell": {
                 "range": {
                     "sheetId": sheet_id,
                     "startRowIndex": 1,
                     "endRowIndex": totals_row_index,
-                    "startColumnIndex": 5,
-                    "endColumnIndex": 8,
+                    "startColumnIndex": 6,
+                    "endColumnIndex": 9,
                 },
                 "cell": {
                     "userEnteredFormat": {
@@ -324,15 +379,15 @@ def write_sheet(rows: list[tuple[str, str, float, float, float]], title: str) ->
                 "fields": "userEnteredFormat(backgroundColor,numberFormat)",
             }
         },
-        # Выплаты 25/10 (I,J 8..10) — зелёный
+        # Выплаты 25/10 (J,K) — зелёный
         {
             "repeatCell": {
                 "range": {
                     "sheetId": sheet_id,
                     "startRowIndex": 1,
                     "endRowIndex": totals_row_index,
-                    "startColumnIndex": 8,
-                    "endColumnIndex": 10,
+                    "startColumnIndex": 9,
+                    "endColumnIndex": 11,
                 },
                 "cell": {
                     "userEnteredFormat": {
@@ -343,15 +398,15 @@ def write_sheet(rows: list[tuple[str, str, float, float, float]], title: str) ->
                 "fields": "userEnteredFormat(backgroundColor,numberFormat)",
             }
         },
-        # Колонка K (10..11) — розовый + жирный
+        # Колонка L — розовый + жирный
         {
             "repeatCell": {
                 "range": {
                     "sheetId": sheet_id,
                     "startRowIndex": 1,
                     "endRowIndex": totals_row_index,
-                    "startColumnIndex": 10,
-                    "endColumnIndex": 11,
+                    "startColumnIndex": 11,
+                    "endColumnIndex": 12,
                 },
                 "cell": {
                     "userEnteredFormat": {
@@ -363,21 +418,21 @@ def write_sheet(rows: list[tuple[str, str, float, float, float]], title: str) ->
                 "fields": "userEnteredFormat(backgroundColor,numberFormat,textFormat)",
             }
         },
-        # Числовой формат ₽ для C..K
+        # Числовой формат ₽ для D..L
         {
             "repeatCell": {
                 "range": {
                     "sheetId": sheet_id,
                     "startRowIndex": 1,
                     "endRowIndex": totals_row_index,
-                    "startColumnIndex": 2,
-                    "endColumnIndex": 11,
+                    "startColumnIndex": 3,
+                    "endColumnIndex": 12,
                 },
                 "cell": {"userEnteredFormat": {"numberFormat": {"type": "NUMBER", "pattern": "#,##0 \"₽\""}}},
                 "fields": "userEnteredFormat.numberFormat",
             }
         },
-        # Снимаем жирный шрифт с рабочих строк (кроме колонки K)
+        # Снимаем жирный шрифт с рабочих строк (кроме колонки L)
         {
             "repeatCell": {
                 "range": {
@@ -385,7 +440,7 @@ def write_sheet(rows: list[tuple[str, str, float, float, float]], title: str) ->
                     "startRowIndex": 1,
                     "endRowIndex": totals_row_index - 1,
                     "startColumnIndex": 0,
-                    "endColumnIndex": 10,
+                    "endColumnIndex": 11,
                 },
                 "cell": {"userEnteredFormat": {"textFormat": {"bold": False, "fontFamily": "Calibri"}}},
                 "fields": "userEnteredFormat.textFormat",
@@ -399,7 +454,7 @@ def write_sheet(rows: list[tuple[str, str, float, float, float]], title: str) ->
                     "startRowIndex": totals_row_index - 1,
                     "endRowIndex": totals_row_index,
                     "startColumnIndex": 0,
-                    "endColumnIndex": 11,
+                    "endColumnIndex": 12,
                 },
                 "cell": {
                     "userEnteredFormat": {
@@ -410,7 +465,7 @@ def write_sheet(rows: list[tuple[str, str, float, float, float]], title: str) ->
                 "fields": "userEnteredFormat(backgroundColor,textFormat)",
             }
         },
-        # Границы по фактическому блоку A1:K<totals_row_index>
+        # Границы по фактическому блоку A1:L<totals_row_index>
         {
             "updateBorders": {
                 "range": {
@@ -418,7 +473,7 @@ def write_sheet(rows: list[tuple[str, str, float, float, float]], title: str) ->
                     "startRowIndex": 0,
                     "endRowIndex": totals_row_index,
                     "startColumnIndex": 0,
-                    "endColumnIndex": 11,
+                    "endColumnIndex": 12,
                 },
                 "top": border,
                 "bottom": border,
@@ -434,6 +489,30 @@ def write_sheet(rows: list[tuple[str, str, float, float, float]], title: str) ->
     service.spreadsheets().batchUpdate(
         spreadsheetId=client.spreadsheet_id, body={"requests": fmt_reqs}
     ).execute()
+
+    # Текстовый формат для ID/ФИО/должности
+    client.set_column_text_format(title, "A")
+    client.set_column_text_format(title, "B")
+    client.set_column_text_format(title, "C")
+
+    # Ширины столбцов: A-C чуть шире, остальные компактнее
+    width_requests = [
+        {
+            "updateDimensionProperties": {
+                "range": {"sheetId": sheet_id, "dimension": "COLUMNS", "startIndex": 0, "endIndex": 3},
+                "properties": {"pixelSize": 130},
+                "fields": "pixelSize",
+            }
+        },
+        {
+            "updateDimensionProperties": {
+                "range": {"sheetId": sheet_id, "dimension": "COLUMNS", "startIndex": 3, "endIndex": 12},
+                "properties": {"pixelSize": 110},
+                "fields": "pixelSize",
+            }
+        },
+    ]
+    service.spreadsheets().batchUpdate(spreadsheetId=client.spreadsheet_id, body={"requests": width_requests}).execute()
 
 
 async def main():

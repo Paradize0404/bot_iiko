@@ -90,3 +90,34 @@ class GoogleSheetsClient:
         target_range = f"{safe_sheet}!A1"
         self.write_range(target_range, [[f"Ping from bot at {stamp}"]])
         return target_range
+
+    def set_column_text_format(self, sheet_title: str, column_letter: str) -> None:
+        """Set plain text format for the whole column (A1 notation letter)."""
+
+        col_index = ord(column_letter.upper()) - ord("A")
+        req = {
+            "repeatCell": {
+                "range": {
+                    "sheetId": self._get_sheet_id(sheet_title),
+                    "startColumnIndex": col_index,
+                    "endColumnIndex": col_index + 1,
+                },
+                "cell": {
+                    "userEnteredFormat": {
+                        "numberFormat": {"type": "TEXT"},
+                    }
+                },
+                "fields": "userEnteredFormat.numberFormat",
+            }
+        }
+        self.service.spreadsheets().batchUpdate(
+            spreadsheetId=self.spreadsheet_id, body={"requests": [req]}
+        ).execute()
+
+    def _get_sheet_id(self, sheet_title: str) -> int:
+        meta = self.service.spreadsheets().get(spreadsheetId=self.spreadsheet_id).execute()
+        for s in meta.get("sheets", []):
+            props = s.get("properties", {})
+            if props.get("title") == sheet_title:
+                return props.get("sheetId")
+        raise RuntimeError(f"Sheet '{sheet_title}' not found")

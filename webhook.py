@@ -31,8 +31,8 @@ async def on_startup():
     
     await init_pool()
     await preload_stores()
-    # Запускаем авто-перемещения по отрицательным остаткам (раз в сутки, первый запуск сразу)
-    asyncio.create_task(run_periodic_negative_transfer(run_immediately=True))
+    # Авто-перемещения по отрицательным остаткам: только по расписанию, без мгновенного запуска
+    asyncio.create_task(run_periodic_negative_transfer(run_immediately=False))
     # Стоп-лист по min-остаткам: первый запуск сразу, далее каждые 2 часа
     asyncio.create_task(run_periodic_low_stock())
     # ensure Bot instance exists at runtime

@@ -23,7 +23,9 @@ from fin_tab.fin_tab_employees_db import async_session as ft_async_session, FinT
 from sqlalchemy import select
 from db.sprav_db import sync_all_references
 from db.supplier_db import sync_suppliers
-from db.accounts_data import sync_accounts
+from db.accounts_data import sync_accounts, async_session, Account
+from fin_tab.setup_accounts_sheet import main as sync_accounts_sheet
+from fin_tab.sync_accounts_incoming import sync_incoming_service_accounts
 from services.db_queries import DBQueries
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from scripts.fill_fot_sheet import main as fill_fot_sheet_main
@@ -42,6 +44,12 @@ async def _run_loader(
     edit: bool = False,
 ):
     try:
+        # Показываем пользователю, что процесс запущен (особенно при долгих операциях)
+        if edit:
+            await target.edit_text("⏳ Идёт загрузка...")
+        else:
+            await target.answer("⏳ Идёт загрузка...")
+
         result = await loader()
         text = success(result) if callable(success) else success
         if edit:
@@ -90,7 +98,23 @@ async def _load_suppliers():
 
 
 async def _load_accounts():
+    # Снимок текущих счетов до синка, чтобы сопоставить старые имена с ID
+    async with async_session() as session:
+        prev_rows = await session.execute(
+            select(Account.id, Account.name).where(
+                Account.deleted.is_(False),
+                Account.extra["type"].astext == "EXPENSES",
+            )
+        )
+        prev_accounts = [(r[0], r[1]) for r in prev_rows.fetchall() if r[0] and r[1]]
+
+    # 1) подтягиваем свежие счета из iiko в БД
     await sync_accounts()
+    # 2) обновляем выпадающий список счетов из iiko в таблице
+    # 3) обновляем таблицу категориями FinTablo, сохраняя привязки по ID
+    await sync_accounts_sheet(prev_accounts)
+    # 4) отправляем суммы INCOMING_SERVICE по маппингу в FinTablo
+    await sync_incoming_service_accounts()
 
 
 async def _load_fot_sheet():

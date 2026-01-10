@@ -61,8 +61,22 @@ async def _startup():
     from aiogram.methods import DeleteWebhook
     await config.bot(DeleteWebhook(drop_pending_updates=True))
     logging.info("✅ Webhook удалён, запускаем polling")
-    
-    await dp.start_polling(config.bot)
+
+    # Сначала поднимаем бота, потом — фоновые задачи FinTablo
+    polling_task = asyncio.create_task(dp.start_polling(config.bot))
+    logging.info("🤖 Polling запущен, стартуем FinTablo синхронизацию")
+
+    async def start_fin_tab_worker():
+        from fin_tab.main import main as fin_tab_main
+
+        try:
+            await fin_tab_main()
+        except Exception:  # pragma: no cover
+            logging.exception("FinTablo worker crashed")
+
+    asyncio.create_task(start_fin_tab_worker())
+
+    await polling_task
 
 
 if __name__ == "__main__":

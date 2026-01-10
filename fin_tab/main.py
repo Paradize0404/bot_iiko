@@ -13,7 +13,9 @@ from fin_tab import iiko_auth
 from fin_tab.sync_pnl_categories import run_daily_sync
 from fin_tab.sync_directions import run_daily_direction_sync
 from fin_tab.sync_revenue import run_daily_revenue_sync
+from fin_tab.sync_accounts_incoming import sync_incoming_service_accounts
 from fin_tab.sync_employees import run_daily_employee_sync
+from fin_tab.sync_salary_from_sheet import sync_salary_from_sheet
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -46,6 +48,10 @@ async def main() -> int:
     task_dir = asyncio.create_task(run_daily_direction_sync(run_immediately=True))
     task_rev = asyncio.create_task(run_daily_revenue_sync(run_immediately=True))
     task_emp = asyncio.create_task(run_daily_employee_sync(run_immediately=True))
+    # Однократные задачи при старте
+    await sync_salary_from_sheet()
+    await sync_incoming_service_accounts()
+
     await asyncio.gather(task_pnl, task_dir, task_rev, task_emp)
     return 0
 

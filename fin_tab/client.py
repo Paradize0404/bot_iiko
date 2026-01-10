@@ -92,3 +92,32 @@ class FinTabloClient:
             raise httpx.HTTPStatusError(
                 f"FinTablo error {resp.status_code}: {detail}", request=resp.request, response=resp
             )
+
+    async def list_salary(self, *, employee_id: Optional[int] = None, date: Optional[str] = None) -> List[Dict[str, Any]]:
+        """GET /v1/salary (фильтр по employeeId и дате мм.гггг)."""
+        if not self._client:
+            raise RuntimeError("Client not initialized; use 'async with FinTabloClient()'.")
+        params: Dict[str, Any] = {}
+        if employee_id is not None:
+            params["employeeId"] = employee_id
+        if date is not None:
+            params["date"] = date
+        resp = await self._client.get("/v1/salary", params=params)
+        resp.raise_for_status()
+        data = resp.json()
+        return data.get("items", [])
+
+    async def update_salary(self, employee_id: int, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """PUT /v1/salary/{id} — обновление начислений сотруднику."""
+        if not self._client:
+            raise RuntimeError("Client not initialized; use 'async with FinTabloClient()'.")
+        resp = await self._client.put(f"/v1/salary/{employee_id}", json=payload)
+        if resp.status_code >= 400:
+            try:
+                detail = resp.text
+            except Exception:  # pragma: no cover
+                detail = ""
+            raise httpx.HTTPStatusError(
+                f"FinTablo error {resp.status_code}: {detail}", request=resp.request, response=resp
+            )
+        return resp.json()

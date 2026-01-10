@@ -121,6 +121,11 @@ async def _load_fot_sheet():
     await fill_fot_sheet_main()
 
 
+async def _run_fin_tab_sync():
+    # Ручной запуск только нашей FinTablo синхронизации INCOMING_SERVICE
+    await sync_incoming_service_accounts()
+
+
 ## ────────────── Inline-меню и обработчики команд администратора ──────────────
 @router.message(F.text == "Команды")
 async def show_commands_list(message: types.Message):
@@ -135,6 +140,7 @@ async def show_commands_list(message: types.Message):
             [InlineKeyboardButton(text="🚚 Загрузить поставщиков", callback_data="cmd:load_suppliers")],
             [InlineKeyboardButton(text="💳 Загрузить счета", callback_data="cmd:load_accounts")],
             [InlineKeyboardButton(text="🧾 Обновить ФОТ", callback_data="cmd:fill_fot")],
+            [InlineKeyboardButton(text="🔄 FinTablo sync (ручн.)", callback_data="cmd:fin_tab_sync")],
             [InlineKeyboardButton(text="🆔 Показать FinTablo ID", callback_data="cmd:show_fintablo_ids")],
         ]
     )
@@ -268,6 +274,18 @@ async def callback_load_accounts(callback: types.CallbackQuery):
         callback.message,
         _load_accounts,
         "✅ Счета успешно загружены в таблицу accounts",
+        edit=True,
+    )
+
+
+@router.callback_query(F.data == "cmd:fin_tab_sync")
+async def callback_fin_tab_sync(callback: types.CallbackQuery):
+    """Ручной запуск FinTablo синхронизации INCOMING_SERVICE"""
+    await callback.answer()
+    await _run_loader(
+        callback.message,
+        _run_fin_tab_sync,
+        "✅ FinTablo синхронизация выполнена",
         edit=True,
     )
 

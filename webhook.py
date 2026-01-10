@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 
 import config
 from bot import dp      # ← используем dp из bot.py
+from fin_tab.main import main as fin_tab_main
 
 from aiogram.methods import DeleteWebhook
 from fastapi import FastAPI, Request
@@ -44,6 +45,15 @@ async def on_startup():
         logging.info("🧪 dev mode: удаляем webhook и запускаем polling")
         # delete webhook and start polling locally
         await bot(DeleteWebhook(drop_pending_updates=True))
+        # Стартуем FinTablo воркер параллельно polling
+        async def start_fin_tab_worker():
+            try:
+                await fin_tab_main()
+            except Exception:
+                logging.exception("FinTablo worker crashed")
+
+        asyncio.create_task(start_fin_tab_worker())
+        logging.info("🤖 Polling запущен, FinTablo воркер стартует в фоне")
         await dp.start_polling(bot)
     else:
         logging.info("🚀 prod mode: устанавливаем webhook")
@@ -55,6 +65,16 @@ async def on_startup():
                 logging.error("WEBHOOK_URL не задан — пропускаем установку webhook")
             else:
                 await bot.set_webhook(webhook_url)
+
+        # Стартуем FinTablo воркер параллельно FastAPI/uvicorn
+        async def start_fin_tab_worker():
+            try:
+                await fin_tab_main()
+            except Exception:
+                logging.exception("FinTablo worker crashed")
+
+        asyncio.create_task(start_fin_tab_worker())
+        logging.info("📈 FinTablo воркер запущен в фоне (prod)")
 
     # mark startup complete for readiness checks
     global startup_complete

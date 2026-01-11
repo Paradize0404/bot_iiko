@@ -12,6 +12,7 @@ FinTablo, которые *не* ставятся автоматически на
 """
 import asyncio
 import logging
+import re
 from typing import Dict, List, Tuple
 
 from dotenv import load_dotenv
@@ -76,7 +77,8 @@ def _write_accounts(
     При наличии account_names_by_id обновляет отображаемое название выбранного счёта,
     если он был переименован (используем ID в тексте "Название - id").
     """
-    # Сохраняем существующие выборы B и ID iiko (колонка D), чтобы не сдвигались при обновлении.
+    # Сохраняем существующие выборы B, чтобы не сдвигались при обновлении.
+    # D не сохраняем (формулы пересоздаём каждый раз).
     existing = client.read_range(f"'{SHEET_TITLE}'!A2:D")
     preserved: dict[int, Tuple[str, str]] = {}
     for r in existing:
@@ -86,8 +88,7 @@ def _write_accounts(
             except ValueError:
                 continue
             selected_name = r[1] if len(r) >= 2 else ""
-            selected_acc_id = r[3] if len(r) >= 4 else ""
-            preserved[cat_id] = (selected_name, selected_acc_id)
+            preserved[cat_id] = (selected_name, "")
 
     # Чистим старые данные
     client.clear_range(f"'{SHEET_TITLE}'!A2:D")
@@ -101,9 +102,25 @@ def _write_accounts(
     elif account_names_by_id:
         resolved_name_to_id = {v: k for k, v in account_names_by_id.items()}
 
+
+    def _looks_like_id(value: str) -> bool:
+        """Грубая проверка: UUID с дефисами или числовая строка."""
+        if not value:
+            return False
+        if re.fullmatch(r"[0-9]+", value):
+            return True
+        if re.fullmatch(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", value):
+            return True
+        return False
+
     values = []
-    for name, cat_id in rows:
-        selected_name, selected_acc_id = preserved.get(cat_id, ("", ""))
+    for idx, (name, cat_id) in enumerate(rows, start=2):  # row number in sheet (A2 -> idx=2)
+        selected_name, _ = preserved.get(cat_id, ("", ""))
+
+        # Определяем ID из текущего выбора имени
+        selected_acc_id = ""
+        if selected_name and resolved_name_to_id:
+            selected_acc_id = resolved_name_to_id.get(selected_name, "")
 
         # Если ID уже есть, обновляем имя из справочника
         if selected_acc_id and account_names_by_id and selected_acc_id in account_names_by_id:
@@ -120,12 +137,29 @@ def _write_accounts(
         if not selected_acc_id and selected_name and selected_name in resolved_name_to_id:
             selected_acc_id = resolved_name_to_id[selected_name]
 
+        # Если имя в строке отличается от имени по ID — очищаем ID, значит пользователь сменил счёт вручную
+        if selected_acc_id and selected_name:
+            expected_name = account_names_by_id.get(selected_acc_id) if account_names_by_id else None
+            if expected_name and expected_name != selected_name:
+                selected_acc_id = ""
+
         # Финальная строка для отображения: только имя (ID держим скрытым)
         display_value = selected_name
         if selected_acc_id and account_names_by_id and selected_acc_id in account_names_by_id:
             display_value = account_names_by_id[selected_acc_id]
 
-        values.append([name, display_value, str(cat_id), selected_acc_id])
+        # Экранируем кавычки для формулы
+        display_escaped = display_value.replace('"', '""') if display_value else ""
+        id_escaped = selected_acc_id.replace('"', '""') if selected_acc_id else ""
+
+        # Колонка D теперь формула: если в B стоит это же имя — вернуть ID, иначе пусто
+        if selected_acc_id:
+            # Используем ; как разделитель (русская локаль Google Sheets)
+            formula = f'=IF(B{idx}="{display_escaped}";"{id_escaped}";"")'
+        else:
+            formula = ""
+
+        values.append([name, display_value, str(cat_id), formula])
 
     client.write_range(f"'{SHEET_TITLE}'!A2", values)
 

@@ -593,8 +593,12 @@ def format_salary_report(salary_data: dict, from_date: str, to_date: str) -> str
             if emp['bonus'] > 0:
                 if commission_type == 'sales':
                     commission_label = "💰 от продаж"
-                else:  # writeoff
+                elif commission_type == 'writeoff':
                     commission_label = "📦 от расходных накладных"
+                elif commission_type == 'operating-profit':
+                    commission_label = "📉 от операционной прибыли"
+                else:
+                    commission_label = "от другого основания"
                 
                 lines.append(
                     f"    📈 Комиссия ({commission_percent:.1f}% {commission_label}): "

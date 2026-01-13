@@ -16,6 +16,7 @@ from fin_tab.sync_revenue import run_daily_revenue_sync
 from fin_tab.sync_accounts_incoming import sync_incoming_service_accounts
 from fin_tab.sync_employees import run_daily_employee_sync
 from fin_tab.sync_salary_from_sheet import sync_salary_from_sheet
+from services.fot_sheet_scheduler import run_daily_fot_fill
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -31,7 +32,7 @@ def ensure_env():
 async def main() -> int:
     load_dotenv(Path(__file__).resolve().parents[1] / ".env")
     ensure_env()
-    logger.info("FinTablo worker запускается: дневное расписание включено")
+    logger.info("FinTablo worker запускается: только расписание, без мгновенных прогонов")
 
     # Проверяем iiko-доступ для раннего фейла, если нужен
     try:
@@ -43,16 +44,14 @@ async def main() -> int:
         logger.error("iiko auth failed: %s", exc)
         return 1
 
-    # Запускаем вечные циклы: статьи ПиУ, направления и выручка
-    task_pnl = asyncio.create_task(run_daily_sync(run_immediately=True))
-    task_dir = asyncio.create_task(run_daily_direction_sync(run_immediately=True))
-    task_rev = asyncio.create_task(run_daily_revenue_sync(run_immediately=True))
-    task_emp = asyncio.create_task(run_daily_employee_sync(run_immediately=True))
-    # Однократные задачи при старте
-    await sync_salary_from_sheet()
-    await sync_incoming_service_accounts()
+    # Запускаем вечные циклы только по расписанию (без стартового прогона)
+    task_pnl = asyncio.create_task(run_daily_sync(run_immediately=False))
+    task_dir = asyncio.create_task(run_daily_direction_sync(run_immediately=False))
+    task_rev = asyncio.create_task(run_daily_revenue_sync(run_immediately=False))
+    task_emp = asyncio.create_task(run_daily_employee_sync(run_immediately=False))
+    task_fot = asyncio.create_task(run_daily_fot_fill(run_immediately=False))
 
-    await asyncio.gather(task_pnl, task_dir, task_rev, task_emp)
+    await asyncio.gather(task_pnl, task_dir, task_rev, task_emp, task_fot)
     return 0
 
 

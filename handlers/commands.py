@@ -29,6 +29,7 @@ from fin_tab.sync_accounts_incoming import sync_incoming_service_accounts
 from services.db_queries import DBQueries
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from scripts.fill_fot_sheet import main as fill_fot_sheet_main
+from fin_tab.sync_salary_from_sheet import sync_salary_from_sheet
 logging.basicConfig(level=logging.INFO)
 
 # ────────────── Логгер и роутер для aiogram ──────────────
@@ -119,6 +120,7 @@ async def _load_accounts():
 
 async def _load_fot_sheet():
     await fill_fot_sheet_main()
+    await sync_salary_from_sheet()
 
 
 async def _run_fin_tab_sync():
@@ -297,7 +299,7 @@ async def callback_fill_fot(callback: types.CallbackQuery):
     await _run_loader(
         callback.message,
         _load_fot_sheet,
-        "✅ ФОТ-лист обновлён",
+        "✅ ФОТ-лист заполнен и данные отправлены в FinTablo",
         edit=True,
     )
 

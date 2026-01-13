@@ -56,6 +56,11 @@ COMMISSION_MAP = {
     "от продаж": "sales",
     "writeoff": "writeoff",
     "от накладных": "writeoff",
+    "operating": "operating-profit",
+    "operating-profit": "operating-profit",
+    "operating profit": "operating-profit",
+    "оп": "operating-profit",
+    "от операционной прибыли": "operating-profit",
 }
 
 

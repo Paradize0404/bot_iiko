@@ -116,9 +116,10 @@ def apply_validation(sheet_name: str, last_row: int | None = None) -> None:
                         "values": [
                             {"userEnteredValue": "От продаж"},
                             {"userEnteredValue": "От накладных"},
+                            {"userEnteredValue": "От операционной прибыли"},
                         ],
                     },
-                    "inputMessage": "От продаж / От накладных",
+                    "inputMessage": "От продаж / От накладных / От операционной прибыли",
                     "strict": True,
                     "showCustomUi": True,
                 },

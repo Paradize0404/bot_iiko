@@ -5,6 +5,7 @@ import logging
 from datetime import datetime, time, timedelta
 
 from scripts.fill_fot_sheet import main as fill_fot_sheet_main
+from fin_tab.sync_salary_from_sheet import sync_salary_from_sheet
 
 logger = logging.getLogger(__name__)
 _RUN_HOUR = 7
@@ -24,8 +25,9 @@ async def _run_once() -> None:
         logger.info("📊 Старт ежедневного заполнения ФОТ-листа")
         try:
             await fill_fot_sheet_main()
+            await sync_salary_from_sheet()
             duration = (datetime.now() - start).total_seconds()
-            logger.info("✅ ФОТ-лист заполнен за %.1f c", duration)
+            logger.info("✅ ФОТ-лист заполнен и зарплаты отправлены за %.1f c", duration)
         except Exception as exc:  # noqa: BLE001
             logger.exception("❌ Ошибка при заполнении ФОТ-листа: %s", exc)
 

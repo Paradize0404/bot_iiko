@@ -51,17 +51,21 @@ def _load_sheet_rows(title: str) -> List[List[str]]:
 
 
 def _build_payload(row: List[str], month_str: str, bonus_override: Optional[int] = None) -> Dict[str, any]:
-    # Индексы: 0 ID, 1 Имя, 2 Должность, 3 Начислено(formula), 4 Ставка, 5 Процент, 6 Бонус, 7 Удержания, 8 % от OP
+    # Индексы: 0 ID, 1 Имя, 2 Должность, 3 Начислено, 4 Ставка, 5 Процент, 6 Бонус, 7 Удержания, 8 % от OP
     fix = _parse_money(row[4] if len(row) > 4 else None)
-    percent = _parse_money(row[5] if len(row) > 5 else None)
-    bonus_source = _parse_money(row[6] if len(row) > 6 else None)
-    bonus = bonus_override if bonus_override is not None else bonus_source
+    # «Бонус» из листа теперь идёт в поле percent, приоритет у пересчитанного от OP
+    bonus_from_sheet = _parse_money(row[6] if len(row) > 6 else None)
+    percent_from_percent_col = _parse_money(row[5] if len(row) > 5 else None)
+    percent = bonus_override if bonus_override is not None else (bonus_from_sheet or percent_from_percent_col)
+
+    # «Начислено» (формульная сумма) кладём в поле bonus FinTablo
+    accrual_as_bonus = _parse_money(row[3] if len(row) > 3 else None)
     forfeit = _parse_money(row[7] if len(row) > 7 else None)
 
     total_pay: Dict[str, int] = {
         "fix": fix,
         "percent": percent,
-        "bonus": bonus,
+        "bonus": accrual_as_bonus,
         "forfeit": forfeit,
     }
 
@@ -134,7 +138,7 @@ async def sync_salary_from_sheet(sheet_title: Optional[str] = None, *, send_to_f
         position_settings = {}
 
     payloads: List[tuple[int, Dict[str, any]]] = []
-    op_bonus_updates: List[tuple[int, int]] = []  # row_index (A1) → bonus value for column F
+    op_bonus_updates: List[tuple[int, int]] = []  # row_index (A1) → bonus value for sheet
     for idx, row in enumerate(rows, start=2):
         if not row or len(row) < 1:
             continue
@@ -159,12 +163,12 @@ async def sync_salary_from_sheet(sheet_title: Optional[str] = None, *, send_to_f
             logger.warning("%s%% от OP запрошен для id=%s, но OP не посчитан — пропуск", op_percent, employee_id)
         payloads.append((employee_id, _build_payload(row, month_str, bonus_override)))
 
-    # Проставляем рассчитанный бонус в колонку F листа ФОТ, чтобы его было видно в таблице
+    # Проставляем рассчитанный бонус в колонку G листа ФОТ, чтобы его было видно в таблице
     if op_bonus_updates:
         sheet_client = GoogleSheetsClient()
         for row_idx, bonus_value in op_bonus_updates:
             try:
-                sheet_client.write_range(f"'{title}'!F{row_idx}", [[bonus_value]])
+                sheet_client.write_range(f"'{title}'!G{row_idx}", [[bonus_value]])
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Не удалось записать бонус в лист ФОТ для строки %s: %s", row_idx, exc)
 

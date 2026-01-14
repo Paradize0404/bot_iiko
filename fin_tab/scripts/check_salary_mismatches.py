@@ -18,7 +18,7 @@ import asyncio
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict
 
 from dotenv import load_dotenv
 
@@ -62,15 +62,6 @@ def _build_sheet_map(title: str, month_str: str) -> Dict[int, dict]:
     return sheet_map
 
 
-async def _fetch_fin_map(month_str: str) -> Dict[int, dict]:
-    fin_map: Dict[int, dict] = {}
-    async with FinTabloClient() as cli:
-        # Pull all salaries for the month; client has no bulk method, so list by employee ID when needed
-        # Here we fetch only for IDs seen in sheet; missing ones will be empty
-        pass
-    return fin_map
-
-
 async def main() -> int:
     load_dotenv(Path(__file__).resolve().parents[2] / ".env")
     ns = parse_args()
@@ -97,7 +88,6 @@ async def main() -> int:
 
     missing_in_fin = [emp_id for emp_id in ids if not fin_map.get(emp_id)]
 
-    # Totals
     sheet_totals = {"fix": 0, "percent": 0, "bonus": 0, "forfeit": 0}
     fin_totals = {"fix": 0, "percent": 0, "bonus": 0, "forfeit": 0}
 

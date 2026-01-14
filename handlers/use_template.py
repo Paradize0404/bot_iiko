@@ -1,9 +1,13 @@
 ## ────────────── Импорт библиотек и общих функций ──────────────
 import logging
 import pprint
+import re
 from html import escape
+from pathlib import Path
+from tempfile import NamedTemporaryFile
+from typing import Optional
 from aiogram import Router, types, F
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, FSInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from handlers.common import (
@@ -16,8 +20,142 @@ from handlers.common import (
     post_xml,
 )
 
+try:
+    from fpdf import FPDF  # type: ignore
+except Exception:  # library might be missing in legacy envs
+    FPDF = None  # type: ignore
+
 router = Router()
 logger = logging.getLogger(__name__)
+
+
+def _find_font_path() -> Optional[Path]:
+    candidates = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "C:/Windows/Fonts/arial.ttf",
+        "C:/Windows/Fonts/tahoma.ttf",
+    ]
+    for path in candidates:
+        font_path = Path(path)
+        if font_path.exists():
+            return font_path
+    return None
+
+
+def _safe_text(text: str | None, allow_unicode: bool) -> str:
+    if not text:
+        return "-"
+    if allow_unicode:
+        return text
+    safe = text.encode("ascii", "ignore").decode("ascii", "ignore")
+    return safe or "-"
+
+
+def _fit_text(pdf: "FPDF", text: str, width: float) -> str:
+    padding = 2
+    if pdf.get_string_width(text) <= width - padding:
+        return text
+    truncated = text
+    while truncated and pdf.get_string_width(truncated + "...") > width - padding:
+        truncated = truncated[:-1]
+    return (truncated + "...") if truncated else text[:1]
+
+
+def _build_pdf_filename(template_name: str | None) -> str:
+    base = template_name or "расходная накладная"
+    safe = re.sub(r"[^0-9A-Za-zА-Яа-я _.-]", "_", base).strip()
+    if not safe:
+        safe = "расходная накладная"
+    return f"{safe}.pdf"
+
+
+def _generate_invoice_pdf(doc: dict, unit_names: dict[str, str]) -> Path | None:
+    if FPDF is None:
+        logger.warning("FPDF не установлен, PDF не будет сгенерирован")
+        return None
+
+    items = doc.get("items", []) or []
+    font_path = _find_font_path()
+    pdf = FPDF(orientation="P", unit="mm", format="A4")
+    pdf.set_auto_page_break(auto=False)
+    pdf.add_page()
+
+    font_family = "Arial"
+    unicode_enabled = False
+    if font_path:
+        try:
+            pdf.add_font("DocFont", "", str(font_path), uni=True)
+            font_family = "DocFont"
+            unicode_enabled = True
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Не удалось подключить шрифт %s: %s", font_path, exc)
+
+    page_height = 297.0
+    margin_top = 8.0
+    margin_bottom = 8.0
+    usable_height = page_height - margin_top - margin_bottom
+    per_copy_height = usable_height / 2.0
+
+    header_height_base = 33.0  # заголовок + 3 строки + отступ
+    row_h_base = 8.0
+    needed_height = header_height_base + (len(items) + 1) * row_h_base
+    scale = min(1.0, per_copy_height / needed_height) if needed_height else 1.0
+    row_h = max(4.0, row_h_base * scale)
+    font_factor = max(0.65, scale)
+
+    title_size = max(10, round(14 * font_factor))
+    info_size = max(8, round(10 * font_factor))
+    table_size = max(7, round(9 * font_factor))
+
+    headers = ["№", "Позиция", "Кол-во", "Ед.", "Цена", "Сумма"]
+    widths = [10, 80, 25, 20, 25, 30]
+
+    def _render_copy(y_offset: float) -> None:
+        pdf.set_xy(10, y_offset)
+        pdf.set_font(font_family, size=title_size)
+        pdf.cell(0, row_h + 2, _safe_text("Расходная накладная", unicode_enabled), ln=1)
+
+        pdf.set_font(font_family, size=info_size)
+        pdf.cell(0, row_h, _safe_text(f"Шаблон: {doc.get('name')}", unicode_enabled), ln=1)
+        pdf.cell(0, row_h, _safe_text(f"Склад: {doc.get('store_name') or '—'}", unicode_enabled), ln=1)
+        pdf.cell(0, row_h, _safe_text(f"Поставщик: {doc.get('supplier_name') or '—'}", unicode_enabled), ln=1)
+        pdf.ln(1)
+
+        pdf.set_font(font_family, size=table_size)
+        for title, width in zip(headers, widths):
+            pdf.cell(width, row_h, _safe_text(title, unicode_enabled), border=1, align="C")
+        pdf.ln(row_h)
+
+        total_sum = 0.0
+        for idx, item in enumerate(items, start=1):
+            qty = float(item.get("quantity") or 0)
+            price = float(item.get("price") or 0)
+            subtotal = qty * price
+            total_sum += subtotal
+
+            unit = unit_names.get(item.get("mainunit"), "шт")
+            name_text = _fit_text(pdf, _safe_text(item.get("name") or "-", unicode_enabled), widths[1])
+            qty_text = f"{qty:.3f}".rstrip("0").rstrip(".")
+            pdf.cell(widths[0], row_h, str(idx), border=1, align="C")
+            pdf.cell(widths[1], row_h, name_text, border=1)
+            pdf.cell(widths[2], row_h, qty_text, border=1, align="R")
+            pdf.cell(widths[3], row_h, _safe_text(unit, unicode_enabled), border=1, align="C")
+            pdf.cell(widths[4], row_h, f"{price:.2f}", border=1, align="R")
+            pdf.cell(widths[5], row_h, f"{subtotal:.2f}", border=1, align="R")
+            pdf.ln(row_h)
+
+        pdf.cell(sum(widths[:-1]), row_h, _safe_text("Итого", unicode_enabled), border=1, align="R")
+        pdf.cell(widths[-1], row_h, f"{total_sum:.2f}", border=1, align="R")
+
+    _render_copy(margin_top)
+    _render_copy(margin_top + per_copy_height)
+
+    tmp = NamedTemporaryFile(delete=False, suffix=".pdf")
+    pdf.output(tmp.name)
+    return Path(tmp.name)
 
 
 ## ────────────── Состояния FSM для применения шаблона ──────────────
@@ -169,6 +307,7 @@ async def handle_quantity_input(message: types.Message, state: FSMContext):
         'to_store_id': data.get('to_store_id'),
         'supplier_id': data.get('supplier_id'),
         'supplier_name': data.get('supplier_name'),
+        'store_name': data.get('store_name'),
         'items': items,
     }
     logger.info('Итог шаблона: %s', pprint.pformat(final, width=120))
@@ -220,6 +359,7 @@ async def confirm_and_send_invoice(callback: types.CallbackQuery, state: FSMCont
     Пропускает позиции с нулевым количеством
     """
     data = await state.get_data()
+    unit_names = data.get('unit_names', {})
     final = data.get('final_data')
     if not final:
         await callback.message.edit_text("⚠️ Данные не найдены.")
@@ -238,6 +378,24 @@ async def confirm_and_send_invoice(callback: types.CallbackQuery, state: FSMCont
         return
 
     final['items'] = filtered_items
+
+    pdf_path = _generate_invoice_pdf(
+        {**final, "store_name": final.get("store_name") or data.get("store_name")},
+        unit_names,
+    )
+    if pdf_path:
+        try:
+            await callback.message.answer_document(
+                FSInputFile(pdf_path, filename=_build_pdf_filename(final.get('name'))),
+                caption="📄 PDF расходной накладной",
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Не удалось отправить PDF накладной: %s", exc)
+        finally:
+            try:
+                pdf_path.unlink(missing_ok=True)
+            except Exception:  # noqa: BLE001
+                logger.debug("Не удалось удалить временный PDF %s", pdf_path)
 
     # Отправляем накладную
     inv_xml = build_invoice_xml(final)

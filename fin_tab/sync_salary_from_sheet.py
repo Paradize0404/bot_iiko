@@ -53,19 +53,18 @@ def _load_sheet_rows(title: str) -> List[List[str]]:
 def _build_payload(row: List[str], month_str: str, bonus_override: Optional[int] = None) -> Dict[str, any]:
     # Индексы: 0 ID, 1 Имя, 2 Должность, 3 Начислено, 4 Ставка, 5 Процент, 6 Бонус, 7 Удержания, 8 % от OP
     fix = _parse_money(row[4] if len(row) > 4 else None)
-    # «Бонус» из листа теперь идёт в поле percent, приоритет у пересчитанного от OP
+    # Маппинг: бонус → percent, начислено → bonus (премия), ставка → fix, удержания → forfeit
     bonus_from_sheet = _parse_money(row[6] if len(row) > 6 else None)
     percent_from_percent_col = _parse_money(row[5] if len(row) > 5 else None)
     percent = bonus_override if bonus_override is not None else (bonus_from_sheet or percent_from_percent_col)
 
-    # «Начислено» (формульная сумма) кладём в поле bonus FinTablo
-    accrual_as_bonus = _parse_money(row[3] if len(row) > 3 else None)
+    bonus_premia = _parse_money(row[3] if len(row) > 3 else None)
     forfeit = _parse_money(row[7] if len(row) > 7 else None)
 
     total_pay: Dict[str, int] = {
         "fix": fix,
         "percent": percent,
-        "bonus": accrual_as_bonus,
+        "bonus": bonus_premia,
         "forfeit": forfeit,
     }
 

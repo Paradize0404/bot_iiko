@@ -25,12 +25,18 @@ try:
 except Exception:  # library might be missing in legacy envs
     FPDF = None  # type: ignore
 
+try:
+    from unidecode import unidecode  # type: ignore
+except Exception:  # noqa: BLE001
+    unidecode = None  # type: ignore
+
 router = Router()
 logger = logging.getLogger(__name__)
 
 
 def _find_font_path() -> Optional[Path]:
     candidates = [
+        Path(__file__).resolve().parent.parent / "fonts" / "DejaVuSans.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
         "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
@@ -50,6 +56,13 @@ def _safe_text(text: str | None, allow_unicode: bool) -> str:
         return "-"
     if allow_unicode:
         return text
+    if unidecode:
+        try:
+            translit = unidecode(text)
+            safe = translit.encode("ascii", "ignore").decode("ascii", "ignore")
+            return safe or "-"
+        except Exception:  # noqa: BLE001
+            pass
     safe = text.encode("ascii", "ignore").decode("ascii", "ignore")
     return safe or "-"
 

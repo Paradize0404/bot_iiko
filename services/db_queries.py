@@ -1,7 +1,7 @@
 
 ## ────────────── Сервис централизованных запросов к базе данных ──────────────
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from db.employees_db import async_session, Employee
 from db.nomenclature_db import Nomenclature
 from db.sprav_db import ReferenceData as Accounts
@@ -21,6 +21,23 @@ class DBQueries:
                 select(Employee).where(Employee.telegram_id == str(tg_id))
             )
             return result.scalar_one_or_none()
+
+    ## ────────────── Получение ФИО из таблицы users по Telegram ID ──────────────
+    @staticmethod
+    async def get_user_fullname_by_telegram(tg_id: str) -> str | None:
+        """Get full_name from users table by telegram_id (fallback for PDF headers)."""
+        async with async_session() as session:
+            try:
+                result = await session.execute(
+                    text("SELECT full_name FROM users WHERE telegram_id = :tg LIMIT 1"),
+                    {"tg": str(tg_id)},
+                )
+                row = result.first()
+                if row and row[0]:
+                    return row[0]
+            except Exception:
+                return None
+        return None
 
     ## ────────────── Получение счетов по именам ──────────────
     @staticmethod

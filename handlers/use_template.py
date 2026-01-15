@@ -2,6 +2,7 @@
 import logging
 import pprint
 import re
+from datetime import datetime
 from html import escape
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -19,6 +20,7 @@ from handlers.common import (
     build_invoice_xml,
     post_xml,
 )
+from services.db_queries import DBQueries
 
 try:
     from fpdf import FPDF  # type: ignore
@@ -34,9 +36,40 @@ router = Router()
 logger = logging.getLogger(__name__)
 
 
-def _find_font_path() -> Optional[Path]:
+FONT_BUNDLE_PATH = Path(__file__).resolve().parent.parent / "fonts" / "DejaVuSans.ttf"
+
+
+async def _ensure_font_file() -> Optional[Path]:
+    if FONT_BUNDLE_PATH.exists():
+        return FONT_BUNDLE_PATH
+    try:
+        FONT_BUNDLE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        urls = [
+            "https://raw.githubusercontent.com/dejavu-fonts/dejavu-fonts/version_2_37/ttf/DejaVuSans.ttf",
+            "https://raw.githubusercontent.com/dejavu-fonts/dejavu-fonts/master/ttf/DejaVuSans.ttf",
+            "https://github.com/dejavu-fonts/dejavu-fonts/raw/version_2_37/ttf/DejaVuSans.ttf",
+        ]
+        import httpx
+
+        async with httpx.AsyncClient(timeout=20) as client:
+            for url in urls:
+                try:
+                    resp = await client.get(url)
+                    resp.raise_for_status()
+                    FONT_BUNDLE_PATH.write_bytes(resp.content)
+                    logger.info("Скачан шрифт DejaVuSans.ttf из %s", url)
+                    return FONT_BUNDLE_PATH
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Не удалось скачать шрифт из %s: %s", url, exc)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Не удалось скачать шрифт DejaVuSans: %s", exc)
+    return None
+
+
+async def _find_font_path() -> Optional[Path]:
+    bundled = await _ensure_font_file()
     candidates = [
-        Path(__file__).resolve().parent.parent / "fonts" / "DejaVuSans.ttf",
+        bundled,
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
         "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
@@ -45,6 +78,8 @@ def _find_font_path() -> Optional[Path]:
         "C:/Windows/Fonts/tahoma.ttf",
     ]
     for path in candidates:
+        if not path:
+            continue
         font_path = Path(path)
         if font_path.exists():
             return font_path
@@ -85,13 +120,13 @@ def _build_pdf_filename(template_name: str | None) -> str:
     return f"{safe}.pdf"
 
 
-def _generate_invoice_pdf(doc: dict, unit_names: dict[str, str]) -> Path | None:
+async def _generate_invoice_pdf(doc: dict, unit_names: dict[str, str]) -> Path | None:
     if FPDF is None:
         logger.warning("FPDF не установлен, PDF не будет сгенерирован")
         return None
 
     items = doc.get("items", []) or []
-    font_path = _find_font_path()
+    font_path = await _find_font_path()
     pdf = FPDF(orientation="P", unit="mm", format="A4")
     pdf.set_auto_page_break(auto=False)
     pdf.add_page()
@@ -112,11 +147,29 @@ def _generate_invoice_pdf(doc: dict, unit_names: dict[str, str]) -> Path | None:
     usable_height = page_height - margin_top - margin_bottom
     per_copy_height = usable_height / 2.0
 
-    header_height_base = 33.0  # заголовок + 3 строки + отступ
     row_h_base = 8.0
-    needed_height = header_height_base + (len(items) + 1) * row_h_base
-    scale = min(1.0, per_copy_height / needed_height) if needed_height else 1.0
+    title_h_base = row_h_base + 2.0
+    info_lines = 5  # шаблон, склад, сотрудник, дата, поставщик
+    info_h_base = info_lines * row_h_base
+    spacer_base = 2.0
+    table_h_base = (len(items) + 1) * row_h_base  # +1 за заголовок таблицы
+    total_row_base = row_h_base
+    signature_h_base = row_h_base + 2.0
+    needed_height_base = (
+        title_h_base
+        + info_h_base
+        + spacer_base
+        + table_h_base
+        + total_row_base
+        + signature_h_base
+    )
+
+    scale = min(1.0, per_copy_height / needed_height_base) if needed_height_base else 1.0
     row_h = max(4.0, row_h_base * scale)
+    title_h = title_h_base * scale
+    info_h = row_h_base * scale
+    spacer_h = spacer_base * scale
+    signature_h = signature_h_base * scale
     font_factor = max(0.65, scale)
 
     title_size = max(10, round(14 * font_factor))
@@ -129,13 +182,15 @@ def _generate_invoice_pdf(doc: dict, unit_names: dict[str, str]) -> Path | None:
     def _render_copy(y_offset: float) -> None:
         pdf.set_xy(10, y_offset)
         pdf.set_font(font_family, size=title_size)
-        pdf.cell(0, row_h + 2, _safe_text("Расходная накладная", unicode_enabled), ln=1)
+        pdf.cell(0, title_h, _safe_text("Расходная накладная", unicode_enabled), ln=1)
 
         pdf.set_font(font_family, size=info_size)
-        pdf.cell(0, row_h, _safe_text(f"Шаблон: {doc.get('name')}", unicode_enabled), ln=1)
-        pdf.cell(0, row_h, _safe_text(f"Склад: {doc.get('store_name') or '—'}", unicode_enabled), ln=1)
-        pdf.cell(0, row_h, _safe_text(f"Поставщик: {doc.get('supplier_name') or '—'}", unicode_enabled), ln=1)
-        pdf.ln(1)
+        pdf.cell(0, info_h, _safe_text(f"Шаблон: {doc.get('name')}", unicode_enabled), ln=1)
+        pdf.cell(0, info_h, _safe_text(f"Склад: {doc.get('store_name') or '—'}", unicode_enabled), ln=1)
+        pdf.cell(0, info_h, _safe_text(f"Сотрудник: {doc.get('user_fullname') or '—'}", unicode_enabled), ln=1)
+        pdf.cell(0, info_h, _safe_text(f"Дата: {doc.get('created_at') or '—'}", unicode_enabled), ln=1)
+        pdf.cell(0, info_h, _safe_text(f"Поставщик: {doc.get('supplier_name') or '—'}", unicode_enabled), ln=1)
+        pdf.ln(spacer_h)
 
         pdf.set_font(font_family, size=table_size)
         for title, width in zip(headers, widths):
@@ -162,6 +217,9 @@ def _generate_invoice_pdf(doc: dict, unit_names: dict[str, str]) -> Path | None:
 
         pdf.cell(sum(widths[:-1]), row_h, _safe_text("Итого", unicode_enabled), border=1, align="R")
         pdf.cell(widths[-1], row_h, f"{total_sum:.2f}", border=1, align="R")
+
+        pdf.ln(signature_h)
+        pdf.cell(sum(widths), row_h, _safe_text("Принял: ______________________", unicode_enabled), border=0, align="L")
 
     _render_copy(margin_top)
     _render_copy(margin_top + per_copy_height)
@@ -211,6 +269,20 @@ async def use_template_handler(callback: types.CallbackQuery, state: FSMContext)
         store_result = await s.execute(select(Store.name).where(Store.id == tpl.from_store_id))
         store_name = store_result.scalar_one_or_none() or "—"
 
+    # Имя сотрудника по Telegram ID
+    employee_name = (callback.from_user.full_name or "").strip() or "—"
+    tg_id_str = str(callback.from_user.id)
+    try:
+        user = await DBQueries.get_employee_by_telegram(tg_id_str)
+        if user:
+            employee_name = f"{user.first_name or ''} {user.last_name or ''}".strip() or employee_name
+        else:
+            user_full = await DBQueries.get_user_fullname_by_telegram(tg_id_str)
+            if user_full:
+                employee_name = user_full.strip() or employee_name
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Не удалось получить имя сотрудника: %s", exc)
+
     # Предзагружаем имена единиц измерения для всех позиций (оптимизация)
     unit_names = {}
     for item in tpl.items:
@@ -249,6 +321,7 @@ async def use_template_handler(callback: types.CallbackQuery, state: FSMContext)
         supplier_name=tpl.supplier_name,
         template_name=tpl.name,
         store_name=store_name,
+        user_fullname=employee_name,
         unit_names=unit_names,  # Сохраняем кэш единиц измерения
     )
     await state.set_state(TemplateFill.AwaitQuantity)
@@ -321,6 +394,8 @@ async def handle_quantity_input(message: types.Message, state: FSMContext):
         'supplier_id': data.get('supplier_id'),
         'supplier_name': data.get('supplier_name'),
         'store_name': data.get('store_name'),
+        'user_fullname': data.get('user_fullname'),
+        'created_at': datetime.now().strftime("%Y-%m-%d %H:%M"),
         'items': items,
     }
     logger.info('Итог шаблона: %s', pprint.pformat(final, width=120))
@@ -392,7 +467,7 @@ async def confirm_and_send_invoice(callback: types.CallbackQuery, state: FSMCont
 
     final['items'] = filtered_items
 
-    pdf_path = _generate_invoice_pdf(
+    pdf_path = await _generate_invoice_pdf(
         {**final, "store_name": final.get("store_name") or data.get("store_name")},
         unit_names,
     )

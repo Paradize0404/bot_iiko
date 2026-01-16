@@ -1123,3 +1123,114 @@ def format_revenue_report(
             lines.append(f"  Итого ФОТ: {_fmt_currency(total_salary)}")
 
     return "\n".join(lines)
+
+
+def format_l4l_revenue_report(
+    current_data: Dict[str, Any],
+    previous_data: Dict[str, Any],
+    current_from: str,
+    current_to: str,
+    previous_from: str,
+    previous_to: str,
+) -> str:
+    """Сформировать L4L-отчёт по выручке и себестоимости (YoY)."""
+
+    def _fmt_currency(value: float) -> str:
+        return f"{value:,.2f} ₽".replace(",", " ")
+
+    def _fmt_percent(value: float) -> str:
+        return f"{value:.1f}%"
+
+    def _fmt_pp_diff(current: float, previous: float) -> str:
+        diff = current - previous
+        sign = "⬆️" if diff > 0 else "⬇️" if diff < 0 else "➖"
+        return f"{sign} {diff:+.1f} п.п."
+
+    def _fmt_delta(current: float, previous: float) -> str:
+        diff = current - previous
+        if previous:
+            percent = diff / previous * 100
+            return f"{diff:+,.2f} ₽ ({percent:+.1f}%)".replace(",", " ")
+        return f"{diff:+,.2f} ₽".replace(",", " ")
+
+    def _fmt_delta_currency(current: float, previous: float) -> str:
+        return _fmt_delta(current, previous)
+
+    def _fmt_date(value: str) -> str:
+        try:
+            return datetime.strptime(value, "%Y-%m-%d").strftime("%d.%m.%Y")
+        except Exception:
+            return value
+
+    segments = [
+        ("🍹 Бар", "bar_revenue", "bar_cost", "bar_cost_percent"),
+        ("🍕 Кухня", "kitchen_revenue", "kitchen_cost", "kitchen_cost_percent"),
+        ("📱 Приложение", "app_revenue", "app_cost", "app_cost_percent"),
+        ("🚗 Доставка (Яндекс)", "delivery_revenue", "yandex_cost", "yandex_cost_percent"),
+    ]
+
+    current_total_revenue = (
+        float(current_data.get("bar_revenue", 0.0))
+        + float(current_data.get("kitchen_revenue", 0.0))
+        + float(current_data.get("delivery_revenue", 0.0))
+        + float(current_data.get("app_revenue", 0.0))
+    )
+    previous_total_revenue = (
+        float(previous_data.get("bar_revenue", 0.0))
+        + float(previous_data.get("kitchen_revenue", 0.0))
+        + float(previous_data.get("delivery_revenue", 0.0))
+        + float(previous_data.get("app_revenue", 0.0))
+    )
+
+    lines = [
+        "📈 *L4L: Выручка и себестоимость*",
+        f"Текущий период: {_fmt_date(current_from)} — {_fmt_date(current_to)}",
+        f"Период прошлого года: {_fmt_date(previous_from)} — {_fmt_date(previous_to)}",
+        "",
+    ]
+
+    for label, revenue_key, cost_key, cost_percent_key in segments:
+        cur_rev = float(current_data.get(revenue_key, 0.0))
+        prev_rev = float(previous_data.get(revenue_key, 0.0))
+        cur_cost = float(current_data.get(cost_key, 0.0))
+        prev_cost = float(previous_data.get(cost_key, 0.0))
+        cur_cost_percent = float(current_data.get(cost_percent_key, 0.0))
+        prev_cost_percent = float(previous_data.get(cost_percent_key, 0.0))
+
+        lines.extend(
+            [
+                f"*{label}*",
+                f"• Выручка: {_fmt_currency(cur_rev)} (прошлый год: {_fmt_currency(prev_rev)})",
+                f"  Δ: {_fmt_delta_currency(cur_rev, prev_rev)}",
+                f"• Себестоимость: {_fmt_currency(cur_cost)} ({_fmt_percent(cur_cost_percent)})",
+                f"  Было: {_fmt_currency(prev_cost)} ({_fmt_percent(prev_cost_percent)})",
+                f"  Δ: {_fmt_delta_currency(cur_cost, prev_cost)} | {_fmt_pp_diff(cur_cost_percent, prev_cost_percent)}",
+                "",
+            ]
+        )
+
+    cur_total_cost = float(current_data.get("total_cost", 0.0))
+    prev_total_cost = float(previous_data.get("total_cost", 0.0))
+    cur_total_cost_percent = float(current_data.get("total_cost_percent", 0.0))
+    prev_total_cost_percent = float(previous_data.get("total_cost_percent", 0.0))
+
+    # Пересчитываем проценты, чтобы приложение входило в базу выручки
+    cur_total_cost_percent_display = (
+        cur_total_cost / current_total_revenue * 100 if current_total_revenue else 0.0
+    )
+    prev_total_cost_percent_display = (
+        prev_total_cost / previous_total_revenue * 100 if previous_total_revenue else 0.0
+    )
+
+    lines.extend(
+        [
+            "💵 *ИТОГО*",
+            f"• Выручка: {_fmt_currency(current_total_revenue)} (прошлый год: {_fmt_currency(previous_total_revenue)})",
+            f"  Δ: {_fmt_delta_currency(current_total_revenue, previous_total_revenue)}",
+            f"• Себестоимость: {_fmt_currency(cur_total_cost)} ({_fmt_percent(cur_total_cost_percent_display)})",
+            f"  Было: {_fmt_currency(prev_total_cost)} ({_fmt_percent(prev_total_cost_percent_display)})",
+            f"  Δ: {_fmt_delta_currency(cur_total_cost, prev_total_cost)} | {_fmt_pp_diff(cur_total_cost_percent_display, prev_total_cost_percent_display)}",
+        ]
+    )
+
+    return "\n".join(lines)

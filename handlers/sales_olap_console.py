@@ -12,6 +12,7 @@ from services.revenue_report import (
     calculate_salary_by_departments,
     format_cost_by_cooking_place_report,
     format_dishes_table,
+    format_l4l_revenue_report,
     format_revenue_report,
     get_revenue_report,
 )
@@ -42,6 +43,18 @@ async def start_main_report(message: types.Message, state: FSMContext):
     ))
     await state.set_state(SalesReportStates.selecting_start)
     await state.update_data(report_type="main")
+
+
+# Кнопка: L4L (YoY)
+@router.message(F.text == "L4L")
+async def start_l4l_report(message: types.Message, state: FSMContext):
+    """Запросить L4L отчёт без расчёта ФОТ (YoY)."""
+
+    await message.answer("Выберите дату *начала* периода:", reply_markup=build_calendar(
+        year=datetime.now().year, month=datetime.now().month, calendar_id="sales_l4l_start", mode="single"
+    ))
+    await state.set_state(SalesReportStates.selecting_start)
+    await state.update_data(report_type="l4l")
 
 @router.message(F.text == "📑 Себестоимость по категориям")
 async def start_category_report(message: types.Message, state: FSMContext):
@@ -115,16 +128,16 @@ async def calendar_handler(call: types.CallbackQuery, state: FSMContext):
             # Запуск генерации отчёта
             msg = await call.message.edit_text("⏳ Формируем отчёт... Пожалуйста, подождите.")
 
-            if data_ctx["report_type"] == "main":
-                # Отчет по выручке (только OLAP, без зарплат и расходных)
+            report_type = data_ctx.get("report_type")
+
+            if report_type == "main":
+                # Отчет по выручке (только OLAP, с ФОТ)
                 try:
-                    # Получаем данные отчета
                     raw_data = await get_revenue_report(
                         date_from=data_ctx["date_start"],
                         date_to=data_ctx["date_end"]
                     )
-                    
-                    # Рассчитываем выручку, расходные, а затем добавляем ФОТ по цехам
+
                     revenue_data = await calculate_revenue(
                         raw_data,
                         data_ctx["date_start"],
@@ -139,8 +152,7 @@ async def calendar_handler(call: types.CallbackQuery, state: FSMContext):
                         )
                     except Exception as exc:
                         logger.warning("Не удалось рассчитать ФОТ по цехам: %s", exc)
-                    
-                    # Формируем простой отчет только по выручке
+
                     text = format_revenue_report(
                         revenue_data,
                         data_ctx["date_start"],
@@ -148,10 +160,60 @@ async def calendar_handler(call: types.CallbackQuery, state: FSMContext):
                         dept_salaries=dept_salaries,
                     )
                     await msg.edit_text(text, parse_mode="Markdown")
-                except Exception as e:
-                    logger.exception(f"Ошибка при формировании отчета: {e}")
-                    await msg.edit_text(f"❌ Ошибка при формировании отчета: {str(e)}")
-            else:
+                except Exception as exc:  # noqa: BLE001
+                    logger.exception("Ошибка при формировании отчета: %s", exc)
+                    await msg.edit_text(f"❌ Ошибка при формировании отчета: {exc}")
+
+            elif report_type == "l4l":
+                # Сравнение периода с аналогичным периодом прошлого года, без ФОТ
+                try:
+                    def _shift_one_year(date_str: str) -> str:
+                        base_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                        try:
+                            shifted = base_date.replace(year=base_date.year - 1)
+                        except ValueError:
+                            shifted = base_date - timedelta(days=365)
+                        return shifted.strftime("%Y-%m-%d")
+
+                    prev_start = _shift_one_year(data_ctx["date_start"])
+                    prev_end = _shift_one_year(data_ctx["date_end"])
+
+                    current_raw_task = asyncio.create_task(get_revenue_report(
+                        date_from=data_ctx["date_start"],
+                        date_to=data_ctx["date_end"],
+                    ))
+                    prev_raw_task = asyncio.create_task(get_revenue_report(
+                        date_from=prev_start,
+                        date_to=prev_end,
+                    ))
+                    current_raw, prev_raw = await asyncio.gather(current_raw_task, prev_raw_task)
+
+                    current_calc_task = asyncio.create_task(calculate_revenue(
+                        current_raw,
+                        data_ctx["date_start"],
+                        data_ctx["date_end"],
+                    ))
+                    prev_calc_task = asyncio.create_task(calculate_revenue(
+                        prev_raw,
+                        prev_start,
+                        prev_end,
+                    ))
+                    current_data, prev_data = await asyncio.gather(current_calc_task, prev_calc_task)
+
+                    text = format_l4l_revenue_report(
+                        current_data,
+                        prev_data,
+                        data_ctx["date_start"],
+                        data_ctx["date_end"],
+                        prev_start,
+                        prev_end,
+                    )
+                    await msg.edit_text(text, parse_mode="Markdown")
+                except Exception as exc:  # noqa: BLE001
+                    logger.exception("Ошибка при формировании L4L отчета: %s", exc)
+                    await msg.edit_text(f"❌ Ошибка при формировании L4L отчета: {exc}")
+
+            elif report_type == "category":
                 try:
                     cost_data = await analyze_cost_by_cooking_place(
                         data_ctx["date_start"],
@@ -160,9 +222,12 @@ async def calendar_handler(call: types.CallbackQuery, state: FSMContext):
                     text = format_cost_by_cooking_place_report(cost_data)
                     logger.info("\n%s", text.replace("*", ""))
                     await msg.edit_text(text, parse_mode="Markdown")
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001
                     logger.exception("Ошибка при расчёте себестоимости по местам приготовления: %s", exc)
                     await msg.edit_text(f"❌ Ошибка при формировании отчета: {exc}")
+
+            else:
+                await msg.edit_text("❌ Неизвестный тип отчёта. Попробуйте ещё раз.")
             
             return
 

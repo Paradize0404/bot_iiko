@@ -46,8 +46,9 @@ async def _ensure_font_file() -> Optional[Path]:
         FONT_BUNDLE_PATH.parent.mkdir(parents=True, exist_ok=True)
         urls = [
             "https://raw.githubusercontent.com/dejavu-fonts/dejavu-fonts/version_2_37/ttf/DejaVuSans.ttf",
-            "https://raw.githubusercontent.com/dejavu-fonts/dejavu-fonts/master/ttf/DejaVuSans.ttf",
+            "https://raw.githubusercontent.com/dejavu-fonts/dejavu-fonts/main/ttf/DejaVuSans.ttf",
             "https://github.com/dejavu-fonts/dejavu-fonts/raw/version_2_37/ttf/DejaVuSans.ttf",
+            "https://dejavu-fonts.github.io/dejavu-fonts/ttf/DejaVuSans.ttf",
         ]
         import httpx
 
@@ -140,6 +141,11 @@ async def _generate_invoice_pdf(doc: dict, unit_names: dict[str, str]) -> Path |
             unicode_enabled = True
         except Exception as exc:  # noqa: BLE001
             logger.warning("Не удалось подключить шрифт %s: %s", font_path, exc)
+    if not unicode_enabled:
+        logger.warning(
+            "Шрифт с поддержкой Юникода не подключился — PDF будет в латинице. "
+            "Скачайте DejaVuSans.ttf в каталог fonts/ или проверьте доступ к интернету."
+        )
 
     page_height = 297.0
     margin_top = 8.0

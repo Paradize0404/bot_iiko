@@ -6,7 +6,7 @@ from datetime import datetime
 from html import escape
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from aiogram import Router, types, F
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, FSInputFile
 from aiogram.fsm.context import FSMContext
@@ -26,6 +26,14 @@ try:
     from fpdf import FPDF  # type: ignore
 except Exception:  # library might be missing in legacy envs
     FPDF = None  # type: ignore
+
+if TYPE_CHECKING:
+    try:
+        from fpdf import FPDF as FPDFType  # type: ignore
+    except Exception:  # noqa: BLE001
+        from typing import Any as FPDFType
+else:
+    FPDFType = object
 
 try:
     from unidecode import unidecode  # type: ignore
@@ -105,7 +113,7 @@ def _safe_text(text: str | None, allow_unicode: bool) -> str:
     return safe or "-"
 
 
-def _fit_text(pdf: "FPDF", text: str, width: float) -> str:
+def _fit_text(pdf: "FPDFType", text: str, width: float) -> str:
     padding = 2
     if pdf.get_string_width(text) <= width - padding:
         return text
@@ -116,8 +124,9 @@ def _fit_text(pdf: "FPDF", text: str, width: float) -> str:
 
 
 def _build_pdf_filename(template_name: str | None) -> str:
-    base = template_name or "расходная накладная"
-    safe = re.sub(r"[^0-9A-Za-zА-Яа-я _.-]", "_", base).strip()
+    base = (template_name or "расходная накладная").strip()
+    # keep cyrillic (incl. Ёё), latin, digits, space, underscore, dot, dash
+    safe = re.sub(r"[^0-9A-Za-zА-Яа-яЁё _.\-]", "_", base).strip()
     if not safe:
         safe = "расходная накладная"
     return f"{safe}.pdf"

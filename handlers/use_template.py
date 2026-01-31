@@ -45,10 +45,12 @@ async def _ensure_font_file() -> Optional[Path]:
     try:
         FONT_BUNDLE_PATH.parent.mkdir(parents=True, exist_ok=True)
         urls = [
+            # master is the actual default branch; main returns 404
+            "https://raw.githubusercontent.com/dejavu-fonts/dejavu-fonts/master/ttf/DejaVuSans.ttf",
+            "https://github.com/dejavu-fonts/dejavu-fonts/raw/master/ttf/DejaVuSans.ttf",
+            # pinned tag as a secondary fallback
             "https://raw.githubusercontent.com/dejavu-fonts/dejavu-fonts/version_2_37/ttf/DejaVuSans.ttf",
-            "https://raw.githubusercontent.com/dejavu-fonts/dejavu-fonts/main/ttf/DejaVuSans.ttf",
             "https://github.com/dejavu-fonts/dejavu-fonts/raw/version_2_37/ttf/DejaVuSans.ttf",
-            "https://dejavu-fonts.github.io/dejavu-fonts/ttf/DejaVuSans.ttf",
         ]
         import httpx
 
